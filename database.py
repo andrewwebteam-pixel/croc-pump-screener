@@ -8,6 +8,7 @@ DB_PATH = "keys.db"
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # user_settings table
     c.execute("""
         CREATE TABLE IF NOT EXISTS user_settings (
             username TEXT PRIMARY KEY,
@@ -20,10 +21,21 @@ def init_db():
             signals_per_day INTEGER DEFAULT 5,
             signals_sent_today INTEGER DEFAULT 0,
             last_reset DATETIME,
-            is_admin INTEGER DEFAULT 0  -- <— новое поле
+            is_admin INTEGER DEFAULT 0
         )
     """)
-    # user_settings таблица остаётся прежней (если вы её уже добавили)
+    # добавьте создание таблицы access_keys
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS access_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            access_key TEXT UNIQUE NOT NULL,
+            duration_months INTEGER NOT NULL,
+            username TEXT,
+            activated_at DATETIME,
+            expires_at DATETIME,
+            is_active INTEGER DEFAULT 0
+        )
+    """)
     conn.commit()
     conn.close()
 
