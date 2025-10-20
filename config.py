@@ -5,6 +5,8 @@ TELEGRAM_TOKEN = "8295160858:AAF5uZ_KstjZlYwf3tfl88UyCM-DaBdYq8c"
 
 # List of admin usernames (Telegram user names without @)
 ADMIN_USERNAMES = ["anb_capateam"]
+# This key grants unlimited access and never expires. Keep it secret.
+ADMIN_ACCESS_KEY = "ADMIN-ROOT-ACCESS"
 
 # API keys for exchanges (replace with your real API keys)
 BINANCE_API_KEY = "2xbgdomhfSHfs17dYknWEEb7FTgpu1gpMgEw20jbbxVze3YX2r94iaWvCCcMSJMp"
