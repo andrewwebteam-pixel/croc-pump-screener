@@ -1,19 +1,19 @@
 # utils/binance_api.py
 import aiohttp
+import asyncio
+
+SEMAPHORE = asyncio.Semaphore(5)
 
 BASE_URL = "https://api.binance.com/api/v3"
 
 async def get_klines(symbol: str, interval: str, limit: int = 2):
-    """
-    Получает последние limit свечей (klines) для указанного symbol и interval.
-    Возвращает список свечей, где каждая свеча — это список:
-    [open_time, open, high, low, close, volume, ...].
-    """
     url = f"{BASE_URL}/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as resp:
-            return await resp.json()
+    # ждём свободное "окно" семафора, чтобы не превысить 5 параллельных запросов
+    async with SEMAPHORE:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as resp:
+                return await resp.json()
 
 async def get_price_change(symbol: str, interval: str):
     """
