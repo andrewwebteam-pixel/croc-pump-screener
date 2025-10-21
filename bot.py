@@ -4,7 +4,7 @@ from aiogram.types import Message
 from aiogram.filters import Command
 
 from config import TELEGRAM_TOKEN
-from database import init_db, activate_key, check_subscription, update_user_setting
+from database import init_db, activate_key, check_subscription, update_user_setting, get_user_settings
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -81,6 +81,14 @@ signals_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text=str(i)) for i in range(6, 11)],
         [KeyboardButton(text=str(i)) for i in range(11, 16)],
         [KeyboardButton(text=str(i)) for i in range(16, 21)],
+        [KeyboardButton(text="🔙 Back")],
+    ],
+    resize_keyboard=True
+)
+# Клавиатура для подменю включения Pump/Dump
+type_alerts_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Pump ON/OFF"), KeyboardButton(text="Dump ON/OFF")],
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True
@@ -182,11 +190,15 @@ async def handle_menu(message: Message):
     elif text == "📉 Dump Alerts":
         user_states[username] = {'menu': 'dump'}
         await message.answer("Dump alerts settings. Choose an option:", reply_markup=dump_menu_kb)
+    elif text == "💡 Type Alerts":
+    # переход в подменю Type Alerts
+        user_states[username]['menu'] = 'type_alerts'
+        await message.answer("Select which alerts to enable/disable:", reply_markup=type_alerts_kb)
     elif text == "⚙️ Settings":
         user_states[username] = {'menu': 'settings'}
         await message.answer("General settings. Choose an option:", reply_markup=settings_menu_kb)
     elif text == "⏱️ Timeframe":
-        # Запоминаем, что сейчас выбираем таймфрейм
+    # Запоминаем, что сейчас выбираем таймфрейм
         if 'menu' in user_states.get(username, {}):
             user_states[username]['setting'] = 'timeframe'
             await message.answer("Select timeframe:", reply_markup=timeframe_kb)
@@ -198,18 +210,46 @@ async def handle_menu(message: Message):
         if 'menu' in user_states.get(username, {}):
             user_states[username]['setting'] = 'signals_per_day'
             await message.answer("Select the number of signals per day:", reply_markup=signals_kb)
+    # Toggle Pump ON/OFF
+    elif text == "Pump ON/OFF":
+        settings = get_user_settings(username)
+        new_val = 0 if settings["type_pump"] == 1 else 1
+        update_user_setting(username, 'type_pump', new_val)
+        status = "ON" if new_val else "OFF"
+        await message.answer(f"Pump alerts are now {status}.", reply_markup=type_alerts_kb)
+    # Toggle Dump ON/OFF
+    elif text == "Dump ON/OFF":
+        settings = get_user_settings(username)
+        new_val = 0 if settings["type_dump"] == 1 else 1
+        update_user_setting(username, 'type_dump', new_val)
+        status = "ON" if new_val else "OFF"
+        await message.answer(f"Dump alerts are now {status}.", reply_markup=type_alerts_kb)
+    # Toggle Binance ON/OFF
+    elif text == "🟡 Binance ON/OFF":
+        settings = get_user_settings(username)
+        new_val = 0 if settings["exchange_binance"] == 1 else 1
+        update_user_setting(username, 'exchange_binance', new_val)
+        status = "ON" if new_val else "OFF"
+        await message.answer(f"Binance alerts are now {status}.", reply_markup=settings_menu_kb)
+    # Toggle Bybit ON/OFF
+    elif text == "🔵 Bybit ON/OFF":
+        settings = get_user_settings(username)
+        new_val = 0 if settings["exchange_bybit"] == 1 else 1
+        update_user_setting(username, 'exchange_bybit', new_val)
+        status = "ON" if new_val else "OFF"
+        await message.answer(f"Bybit alerts are now {status}.", reply_markup=settings_menu_kb)
     elif text == "🔙 Back":
-        # Возврат из подменю в главное меню
-        menu = user_states.get(username, {}).get('menu')
-        if menu == 'pump':
-            await message.answer("Back to Pump Alerts menu.", reply_markup=pump_menu_kb)
-        elif menu == 'dump':
-            await message.answer("Back to Dump Alerts menu.", reply_markup=dump_menu_kb)
-        else:
-            await message.answer("Main menu:", reply_markup=main_menu_kb)
+    # Возврат из подменю
+    current_menu = user_states.get(username, {}).get('menu')
+    if current_menu == 'type_alerts':
+        user_states[username]['menu'] = 'settings'
+        await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
+    elif current_menu == 'pump':
+        await message.answer("Back to Pump Alerts menu.", reply_markup=pump_menu_kb)
+    elif current_menu == 'dump':
+        await message.answer("Back to Dump Alerts menu.", reply_markup=dump_menu_kb)
     else:
-        # Непонятная команда: можете отправить сообщение или игнорировать
-        pass
+        await message.answer("Main menu:", reply_markup=main_menu_kb)
 
 async def main():
     await dp.start_polling(bot)
