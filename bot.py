@@ -339,14 +339,17 @@ async def process_exchange(
             break
 
         try:
-            data = await price_change_func(symbol, timeframe)
-        except Exception as e:
-            logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
-        try:
-            await bot.send_message(ADMIN_CHAT_ID, f"❗️ Error with {symbol} on {exchange_name}: {e}")
-        except Exception as notify_err:
-            logging.error(f"Failed to notify admin: {notify_err}")
-            continue
+    data = await price_change_func(symbol, timeframe)
+    except Exception as e:
+    logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+    try:
+        await bot.send_message(
+            ADMIN_CHAT_ID,
+            f"❗️ Error with {symbol} on {exchange_name}: {e}"
+        )
+    except Exception as notify_err:
+        logging.error(f"Failed to notify admin: {notify_err}")
+    continue
 
         price_change = data["price_change"]
         volume_change = data["volume_change"]
