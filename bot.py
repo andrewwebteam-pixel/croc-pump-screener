@@ -31,11 +31,12 @@ dp = Dispatcher()
 # Инициализация базы данных
 init_db()
 
-# Главные клавиатуры
+# --- Клавиатуры ---
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📈 Pump Alerts"), KeyboardButton(text="📉 Dump Alerts")],
         [KeyboardButton(text="⚙️ Settings"), KeyboardButton(text="🎟️ My Tier")],
+        [KeyboardButton(text="🔓 Logout")],
     ],
     resize_keyboard=True,
 )
@@ -79,13 +80,11 @@ type_alerts_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Клавиатура для экрана "My Tier"
 tier_menu_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="🔙 Back")]],
     resize_keyboard=True,
 )
 
-# Дополнительные клавиатуры
 timeframe_options = ["1m", "5m", "15m", "30m", "1h"]
 timeframe_kb = ReplyKeyboardMarkup(
     keyboard=[
@@ -116,10 +115,9 @@ signals_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Состояния пользователей
+# --- Глобальные переменные ---
 user_states = {}
 SYMBOLS = ["BTCUSDT", "ETHUSDT"]
-
 
 # --- Команды ---
 
@@ -127,7 +125,7 @@ SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     username = message.from_user.username or str(message.from_user.id)
-    if check_subscription(username):
+    if check_subscription(username) and not user_states.get(username, {}).get("awaiting_key"):
         await message.answer(
             "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
             reply_markup=main_menu_kb,
@@ -169,8 +167,7 @@ async def cmd_help(message: Message):
         "/help — Show this help message."
     )
 
-
-# --- Меню и настройки ---
+# --- Обработка меню ---
 
 
 @dp.message()
@@ -179,13 +176,12 @@ async def handle_menu(message: Message):
     text = message.text.strip()
     state = user_states.get(username, {})
 
-    # Ожидание ввода ключа
+    # Активация ключа
     if state.get("awaiting_key"):
         if activate_key(text, username):
             user_states.pop(username, None)
             await message.answer(
-                "Your key has been activated successfully! ✅\n"
-                "Use the menu below to configure your alerts.",
+                "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
                 reply_markup=main_menu_kb,
             )
         else:
@@ -194,7 +190,7 @@ async def handle_menu(message: Message):
             )
         return
 
-    # --- выбор значения ---
+    # --- Выбор параметров ---
     if "setting" in state:
         if state["setting"] == "timeframe" and text in timeframe_options:
             update_user_setting(username, "timeframe", text)
@@ -239,7 +235,6 @@ async def handle_menu(message: Message):
 
     elif text == "🎟️ My Tier":
         user_states[username] = {"menu": "tier"}
-
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
         c.execute(
@@ -261,6 +256,13 @@ async def handle_menu(message: Message):
             )
         else:
             await message.answer("No active subscription found.", reply_markup=tier_menu_kb)
+
+    elif text == "🔓 Logout":
+        user_states[username] = {"awaiting_key": True}
+        await message.answer(
+            "You have been logged out. Please enter your license key to activate your subscription again.",
+            reply_markup=None,
+        )
 
     elif text == "💡 Type Alerts":
         user_states[username]["menu"] = "type_alerts"
@@ -375,6 +377,7 @@ async def check_signals():
                     limit,
                     binance_price_change,
                 )
+
             if bybit_on:
                 await process_exchange(
                     "Bybit",
