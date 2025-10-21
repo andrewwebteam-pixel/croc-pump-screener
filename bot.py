@@ -50,6 +50,7 @@ settings_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="💡 Type Alerts")],
         [KeyboardButton(text="🟡 Binance ON/OFF"), KeyboardButton(text="🔵 Bybit ON/OFF")],
+        [KeyboardButton(text="🔔 Signals ON/OFF")],
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True
@@ -243,9 +244,16 @@ async def handle_menu(message: Message):
         update_user_setting(username, 'exchange_bybit', new_val)
         status = "ON" if new_val else "OFF"
         await message.answer(f"Bybit alerts are now {status}.", reply_markup=settings_menu_kb)
+    elif text == "🔔 Signals ON/OFF":
+        settings = get_user_settings(username)
+        new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
+        update_user_setting(username, "signals_enabled", new_val)
+        status = "ON" if new_val else "OFF"
+    await message.answer(f"Signals are now {status}.", reply_markup=settings_menu_kb)
+
     elif text == "🔙 Back":
         current_menu = user_states.get(username, {}).get('menu')
-    if current_menu == 'type_alerts':
+        if current_menu == 'type_alerts':
         # из подменю типа сигналов возвращаемся в настройки
         user_states[username]['menu'] = 'settings'
         await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
@@ -281,7 +289,8 @@ async def check_signals():
             # число уже отправленных сигналов
             signals_sent = settings["signals_sent_today"] or 0
             limit = settings["signals_per_day"]
-
+            
+            if settings.get("signals_enabled", 1) == 0:
             # если исчерпал лимит, пропускаем
             if signals_sent >= limit:
                 continue
@@ -332,6 +341,10 @@ async def process_exchange(
             data = await price_change_func(symbol, timeframe)
         except Exception as e:
             logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+        try:
+            await bot.send_message(ADMIN_CHAT_ID, f"❗️ Error with {symbol} on {exchange_name}: {e}")
+        except Exception as notify_err:
+            logging.error(f"Failed to notify admin: {notify_err}")
             continue
 
         price_change = data["price_change"]
