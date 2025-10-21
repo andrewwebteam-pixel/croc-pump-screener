@@ -20,9 +20,9 @@ from utils.formatters import format_signal
 
 # Настройка логирования
 logging.basicConfig(
-    filename='pumpscreener.log',
+    filename="pumpscreener.log",
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
+    format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -35,9 +35,9 @@ init_db()
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📈 Pump Alerts"), KeyboardButton(text="📉 Dump Alerts")],
-        [KeyboardButton(text="⚙️ Settings")],
+        [KeyboardButton(text="⚙️ Settings"), KeyboardButton(text="🎟️ My Tier")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 pump_menu_kb = ReplyKeyboardMarkup(
@@ -46,7 +46,7 @@ pump_menu_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text="📡 Signals per day")],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 dump_menu_kb = ReplyKeyboardMarkup(
@@ -55,17 +55,20 @@ dump_menu_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text="📡 Signals per day")],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 settings_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="💡 Type Alerts")],
-        [KeyboardButton(text="🟡 Binance ON/OFF"), KeyboardButton(text="🔵 Bybit ON/OFF")],
+        [
+            KeyboardButton(text="🟡 Binance ON/OFF"),
+            KeyboardButton(text="🔵 Bybit ON/OFF"),
+        ],
         [KeyboardButton(text="🔔 Signals ON/OFF")],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 type_alerts_kb = ReplyKeyboardMarkup(
@@ -73,7 +76,13 @@ type_alerts_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text="Pump ON/OFF"), KeyboardButton(text="Dump ON/OFF")],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
+)
+
+# Клавиатура для экрана "My Tier"
+tier_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="🔙 Back")]],
+    resize_keyboard=True,
 )
 
 # Дополнительные клавиатуры
@@ -83,7 +92,7 @@ timeframe_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text=opt) for opt in timeframe_options],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 price_options = ["0.5%", "1%", "2%", "5%", "10%", "20%", "50%"]
@@ -93,7 +102,7 @@ price_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text=opt) for opt in price_options[3:]],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 signals_kb = ReplyKeyboardMarkup(
@@ -104,7 +113,7 @@ signals_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text=str(i)) for i in range(16, 21)],
         [KeyboardButton(text="🔙 Back")],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 # Состояния пользователей
@@ -114,18 +123,19 @@ SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 
 # --- Команды ---
 
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     username = message.from_user.username or str(message.from_user.id)
     if check_subscription(username):
         await message.answer(
             "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
-            reply_markup=main_menu_kb
+            reply_markup=main_menu_kb,
         )
     else:
+        user_states[username] = {"awaiting_key": True}
         await message.answer(
-            "Hello! 👋 To use this bot you need to activate your access key.\n"
-            "Please send /activate <your-key> to start."
+            "Hello! 👋 Please enter your license key to activate your subscription."
         )
 
 
@@ -142,10 +152,12 @@ async def cmd_activate(message: Message):
     if activate_key(access_key, username):
         await message.answer(
             "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
-            reply_markup=main_menu_kb
+            reply_markup=main_menu_kb,
         )
     else:
-        await message.answer("Invalid key or this key has already been used by another user. ❌")
+        await message.answer(
+            "Invalid key or this key has already been used by another user. ❌"
+        )
 
 
 @dp.message(Command("help"))
@@ -160,107 +172,162 @@ async def cmd_help(message: Message):
 
 # --- Меню и настройки ---
 
+
 @dp.message()
 async def handle_menu(message: Message):
     username = message.from_user.username or str(message.from_user.id)
     text = message.text.strip()
     state = user_states.get(username, {})
 
+    # Ожидание ввода ключа
+    if state.get("awaiting_key"):
+        if activate_key(text, username):
+            user_states.pop(username, None)
+            await message.answer(
+                "Your key has been activated successfully! ✅\n"
+                "Use the menu below to configure your alerts.",
+                reply_markup=main_menu_kb,
+            )
+        else:
+            await message.answer(
+                "Invalid key or this key has already been used by another user. ❌"
+            )
+        return
+
     # --- выбор значения ---
-    if 'setting' in state:
-        if state['setting'] == 'timeframe' and text in timeframe_options:
-            update_user_setting(username, 'timeframe', text)
-            state.pop('setting', None)
-            kb = pump_menu_kb if state.get('menu') == 'pump' else dump_menu_kb
+    if "setting" in state:
+        if state["setting"] == "timeframe" and text in timeframe_options:
+            update_user_setting(username, "timeframe", text)
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Timeframe updated.", reply_markup=kb)
             return
 
-        if state['setting'] == 'percent_change' and text in price_options:
-            value = float(text.strip('%'))
-            update_user_setting(username, 'percent_change', value)
-            state.pop('setting', None)
-            kb = pump_menu_kb if state.get('menu') == 'pump' else dump_menu_kb
+        if state["setting"] == "percent_change" and text in price_options:
+            value = float(text.strip("%"))
+            update_user_setting(username, "percent_change", value)
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Percent change updated.", reply_markup=kb)
             return
 
-        if state['setting'] == 'signals_per_day' and text.isdigit():
-            update_user_setting(username, 'signals_per_day', int(text))
-            state.pop('setting', None)
-            kb = pump_menu_kb if state.get('menu') == 'pump' else dump_menu_kb
+        if state["setting"] == "signals_per_day" and text.isdigit():
+            update_user_setting(username, "signals_per_day", int(text))
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Signals per day updated.", reply_markup=kb)
             return
 
         if text == "🔙 Back":
-            state.pop('setting', None)
-            kb = pump_menu_kb if state.get('menu') == 'pump' else dump_menu_kb
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Back to menu.", reply_markup=kb)
             return
 
-    # --- главное меню ---
+    # --- Главное меню ---
     if text == "📈 Pump Alerts":
-        user_states[username] = {'menu': 'pump'}
+        user_states[username] = {"menu": "pump"}
         await message.answer("Pump alerts settings:", reply_markup=pump_menu_kb)
 
     elif text == "📉 Dump Alerts":
-        user_states[username] = {'menu': 'dump'}
+        user_states[username] = {"menu": "dump"}
         await message.answer("Dump alerts settings:", reply_markup=dump_menu_kb)
 
     elif text == "⚙️ Settings":
-        user_states[username] = {'menu': 'settings'}
+        user_states[username] = {"menu": "settings"}
         await message.answer("General settings:", reply_markup=settings_menu_kb)
 
+    elif text == "🎟️ My Tier":
+        user_states[username] = {"menu": "tier"}
+
+        conn = sqlite3.connect("keys.db")
+        c = conn.cursor()
+        c.execute(
+            "SELECT duration_months, activated_at, expires_at "
+            "FROM access_keys WHERE username=? AND is_active=1",
+            (username,),
+        )
+        key_data = c.fetchone()
+        conn.close()
+
+        if key_data:
+            duration_months, activated_at, expires_at = key_data
+            plan = f"{duration_months} month(s)"
+            start_date = activated_at or "—"
+            end_date = expires_at or "—"
+            await message.answer(
+                f"🧾 Plan: {plan}\nStart date: {start_date}\nEnd date: {end_date}",
+                reply_markup=tier_menu_kb,
+            )
+        else:
+            await message.answer("No active subscription found.", reply_markup=tier_menu_kb)
+
     elif text == "💡 Type Alerts":
-        user_states[username]['menu'] = 'type_alerts'
-        await message.answer("Select which alerts to enable/disable:", reply_markup=type_alerts_kb)
+        user_states[username]["menu"] = "type_alerts"
+        await message.answer(
+            "Select which alerts to enable/disable:", reply_markup=type_alerts_kb
+        )
 
     elif text == "⏱️ Timeframe":
-        user_states[username]['setting'] = 'timeframe'
+        user_states[username]["setting"] = "timeframe"
         await message.answer("Select timeframe:", reply_markup=timeframe_kb)
 
     elif text == "📊 Price change":
-        user_states[username]['setting'] = 'percent_change'
+        user_states[username]["setting"] = "percent_change"
         await message.answer("Select minimum percent change:", reply_markup=price_kb)
 
     elif text == "📡 Signals per day":
-        user_states[username]['setting'] = 'signals_per_day'
+        user_states[username]["setting"] = "signals_per_day"
         await message.answer("Select number of signals per day:", reply_markup=signals_kb)
 
     elif text == "Pump ON/OFF":
         settings = get_user_settings(username)
         new_val = 0 if settings["type_pump"] == 1 else 1
-        update_user_setting(username, 'type_pump', new_val)
-        await message.answer(f"Pump alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=type_alerts_kb)
+        update_user_setting(username, "type_pump", new_val)
+        await message.answer(
+            f"Pump alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=type_alerts_kb
+        )
 
     elif text == "Dump ON/OFF":
         settings = get_user_settings(username)
         new_val = 0 if settings["type_dump"] == 1 else 1
-        update_user_setting(username, 'type_dump', new_val)
-        await message.answer(f"Dump alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=type_alerts_kb)
+        update_user_setting(username, "type_dump", new_val)
+        await message.answer(
+            f"Dump alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=type_alerts_kb
+        )
 
     elif text == "🟡 Binance ON/OFF":
         settings = get_user_settings(username)
         new_val = 0 if settings["exchange_binance"] == 1 else 1
-        update_user_setting(username, 'exchange_binance', new_val)
-        await message.answer(f"Binance alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=settings_menu_kb)
+        update_user_setting(username, "exchange_binance", new_val)
+        await message.answer(
+            f"Binance alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=settings_menu_kb,
+        )
 
     elif text == "🔵 Bybit ON/OFF":
         settings = get_user_settings(username)
         new_val = 0 if settings["exchange_bybit"] == 1 else 1
-        update_user_setting(username, 'exchange_bybit', new_val)
-        await message.answer(f"Bybit alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=settings_menu_kb)
+        update_user_setting(username, "exchange_bybit", new_val)
+        await message.answer(
+            f"Bybit alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=settings_menu_kb,
+        )
 
     elif text == "🔔 Signals ON/OFF":
         settings = get_user_settings(username)
         new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
         update_user_setting(username, "signals_enabled", new_val)
-        await message.answer(f"Signals are now {'ON' if new_val else 'OFF'}.", reply_markup=settings_menu_kb)
+        await message.answer(
+            f"Signals are now {'ON' if new_val else 'OFF'}.", reply_markup=settings_menu_kb
+        )
 
     elif text == "🔙 Back":
-        current_menu = user_states.get(username, {}).get('menu')
-        if current_menu == 'type_alerts':
-            user_states[username]['menu'] = 'settings'
+        current_menu = user_states.get(username, {}).get("menu")
+        if current_menu == "type_alerts":
+            user_states[username]["menu"] = "settings"
             await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
-        elif current_menu in ('pump', 'dump'):
+        elif current_menu in ("pump", "dump", "tier"):
             user_states.pop(username, None)
             await message.answer("Main menu:", reply_markup=main_menu_kb)
         else:
@@ -268,6 +335,7 @@ async def handle_menu(message: Message):
 
 
 # --- Логика сигналов ---
+
 
 async def check_signals():
     while True:
@@ -297,13 +365,27 @@ async def check_signals():
 
             if binance_on:
                 await process_exchange(
-                    "Binance", username, timeframe, threshold,
-                    pump_on, dump_on, signals_sent, limit, binance_price_change
+                    "Binance",
+                    username,
+                    timeframe,
+                    threshold,
+                    pump_on,
+                    dump_on,
+                    signals_sent,
+                    limit,
+                    binance_price_change,
                 )
             if bybit_on:
                 await process_exchange(
-                    "Bybit", username, timeframe, threshold,
-                    pump_on, dump_on, signals_sent, limit, bybit_price_change
+                    "Bybit",
+                    username,
+                    timeframe,
+                    threshold,
+                    pump_on,
+                    dump_on,
+                    signals_sent,
+                    limit,
+                    bybit_price_change,
                 )
 
         await asyncio.sleep(300)
@@ -363,6 +445,7 @@ async def process_exchange(
 
 
 # --- Основной запуск ---
+
 
 async def main():
     asyncio.create_task(check_signals())
