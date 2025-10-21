@@ -245,7 +245,7 @@ async def handle_menu(message: Message):
         await message.answer(f"Bybit alerts are now {status}.", reply_markup=settings_menu_kb)
     elif text == "🔙 Back":
         current_menu = user_states.get(username, {}).get('menu')
-        if current_menu == 'type_alerts':
+    if current_menu == 'type_alerts':
         # из подменю типа сигналов возвращаемся в настройки
         user_states[username]['menu'] = 'settings'
         await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
