@@ -255,7 +255,7 @@ async def handle_menu(message: Message):
         current_menu = user_states.get(username, {}).get('menu')
         if current_menu == 'type_alerts':
         # из подменю типа сигналов возвращаемся в настройки
-        user_states[username]['menu'] = 'settings'
+            user_states[username]['menu'] = 'settings'
         await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
     elif current_menu in ('pump', 'dump'):
         # из Pump/Dump возвращаемся в главное меню и очищаем состояние
@@ -338,10 +338,10 @@ async def process_exchange(
         if signals_sent >= limit:
             break
 
-        try:
-    data = await price_change_func(symbol, timeframe)
+    try:
+        data = await price_change_func(symbol, timeframe)
     except Exception as e:
-    logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+        logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
     try:
         await bot.send_message(
             ADMIN_CHAT_ID,
