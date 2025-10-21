@@ -5,20 +5,34 @@ from aiogram.filters import Command
 
 from config import TELEGRAM_TOKEN
 from database import init_db, activate_key, check_subscription
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
+
+main_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="📈 Pump Alerts"),
+            KeyboardButton(text="📉 Dump Alerts"),
+        ],
+        [
+            KeyboardButton(text="⚙️ Settings"),
+        ],
+    ],
+    resize_keyboard=True
+)
 
 # Инициализация базы данных
 init_db()
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    # Проверяем, активен ли уже ключ для пользователя
     username = message.from_user.username or str(message.from_user.id)
     if check_subscription(username):
         await message.answer(
-            "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts."
+            "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
+            reply_markup=main_menu_kb
         )
     else:
         await message.answer(
@@ -35,7 +49,10 @@ async def cmd_activate(message: Message):
     access_key = parts[1]
     username = message.from_user.username or str(message.from_user.id)
     if activate_key(access_key, username):
-        await message.answer("Your key has been activated successfully! ✅")
+        await message.answer(
+            "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
+            reply_markup=main_menu_kb
+        )
     else:
         await message.answer(
             "Invalid key or this key has already been used by another user. ❌"
@@ -55,3 +72,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
