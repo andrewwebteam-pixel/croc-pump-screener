@@ -1,5 +1,8 @@
 # utils/bybit_api.py
 import aiohttp
+import asyncio
+
+SEMAPHORE = asyncio.Semaphore(5)
 
 BASE_URL = "https://api.bybit.com/v5/market"
 
@@ -13,10 +16,6 @@ INTERVAL_MAP = {
 }
 
 async def get_klines(symbol: str, interval: str, limit: int = 2):
-    """
-    Получает последние limit свечей (kline) на Bybit для символа symbol и интервала interval.
-    Интервал указывается в минутах (строки "1m", "5m", "15m", "30m", "1h").
-    """
     interval_val = INTERVAL_MAP[interval]
     url = f"{BASE_URL}/kline"
     params = {
@@ -25,11 +24,11 @@ async def get_klines(symbol: str, interval: str, limit: int = 2):
         "interval": interval_val,
         "limit": limit,
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as resp:
-            data = await resp.json()
-            # Bybit возвращает {"result": {"list": [...]}}
-            return data["result"]["list"]
+    async with SEMAPHORE:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as resp:
+                data = await resp.json()
+                return data["result"]["list"]
 
 async def get_price_change(symbol: str, interval: str):
     """
