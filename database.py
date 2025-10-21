@@ -113,3 +113,25 @@ def check_subscription(username: str) -> bool:
         return False
     conn.close()
     return True
+
+def get_user_settings(username: str) -> dict:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM user_settings WHERE username=?", (username,))
+    row = c.fetchone()
+    if row is None:
+        # если записи нет, создаём её
+        c.execute("INSERT INTO user_settings (username) VALUES (?)", (username,))
+        conn.commit()
+        return get_user_settings(username)
+    columns = [desc[0] for desc in c.description]
+    conn.close()
+    return dict(zip(columns, row))
+
+def update_user_setting(username: str, field: str, value):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(f"UPDATE user_settings SET {field}=? WHERE username=?", (value, username))
+    conn.commit()
+    conn.close()
+
