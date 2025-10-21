@@ -239,14 +239,17 @@ async def handle_menu(message: Message):
     elif text == "🔙 Back":
         current_menu = user_states.get(username, {}).get('menu')
     if current_menu == 'type_alerts':
+        # из подменю типа сигналов возвращаемся в настройки
         user_states[username]['menu'] = 'settings'
         await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
-    elif current_menu == 'pump':
-        await message.answer("Back to Pump Alerts menu.", reply_markup=pump_menu_kb)
-    elif current_menu == 'dump':
-        await message.answer("Back to Dump Alerts menu.", reply_markup=dump_menu_kb)
-    else:
+    elif current_menu in ('pump', 'dump'):
+        # из Pump/Dump возвращаемся в главное меню и очищаем состояние
+        user_states.pop(username, None)
         await message.answer("Main menu:", reply_markup=main_menu_kb)
+    else:
+        # во всех остальных случаях также открываем главное меню
+        await message.answer("Main menu:", reply_markup=main_menu_kb)
+    return  # прекращаем дальнейшую обработку
 
 async def check_signals():
     """
