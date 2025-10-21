@@ -249,7 +249,7 @@ async def handle_menu(message: Message):
         new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
         update_user_setting(username, "signals_enabled", new_val)
         status = "ON" if new_val else "OFF"
-    await message.answer(f"Signals are now {status}.", reply_markup=settings_menu_kb)
+        await message.answer(f"Signals are now {status}.", reply_markup=settings_menu_kb)
 
     elif text == "🔙 Back":
         current_menu = user_states.get(username, {}).get('menu')
@@ -291,6 +291,7 @@ async def check_signals():
             limit = settings["signals_per_day"]
             
             if settings.get("signals_enabled", 1) == 0:
+                continue
             # если исчерпал лимит, пропускаем
             if signals_sent >= limit:
                 continue
