@@ -245,12 +245,12 @@ async def handle_menu(message: Message):
         update_user_setting(username, 'exchange_bybit', new_val)
         status = "ON" if new_val else "OFF"
         await message.answer(f"Bybit alerts are now {status}.", reply_markup=settings_menu_kb)
-    elif text == "🔔 Signals ON/OFF":
-        settings = get_user_settings(username)
-        new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
-        update_user_setting(username, "signals_enabled", new_val)
-        status = "ON" if new_val else "OFF"
-        await message.answer(f"Signals are now {status}.", reply_markup=settings_menu_kb)
+    elif text == " Signals ON/OFF":
+    settings = get_user_settings(username)
+    new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
+    update_user_setting(username, "signals_enabled", new_val)
+    status = "ON" if new_val else "OFF"
+    await message.answer(f"Signals are now {status}.", reply_markup=settings_menu_kb)
 
     elif text == "🔙 Back":
         current_menu = user_states.get(username, {}).get('menu')
@@ -287,15 +287,15 @@ async def check_signals():
                 continue
 
             settings = get_user_settings(username)
-            # число уже отправленных сигналов
             signals_sent = settings["signals_sent_today"] or 0
             limit = settings["signals_per_day"]
-            
+
             if settings.get("signals_enabled", 1) == 0:
-                continue
-            # если исчерпал лимит, пропускаем
+                continue  # пользователь временно отключил сигналы
+
             if signals_sent >= limit:
-                continue
+                continue  # достигнут дневной лимит
+
 
             timeframe = settings["timeframe"]
             threshold = settings["percent_change"]
@@ -339,28 +339,44 @@ async def process_exchange(
         if signals_sent >= limit:
             break
 
-    try:
-        data = await price_change_func(symbol, timeframe)
-    except Exception as e:
-        logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
-    try:
-        await bot.send_message(
-            ADMIN_CHAT_ID,
-            f"❗️ Error with {symbol} on {exchange_name}: {e}"
-        )
-    except Exception as notify_err:
-        logging.error(f"Failed to notify admin: {notify_err}")
-    continue
+        try:
+            data = await price_change_func(symbol, timeframe)
+        except Exception as e:
+            logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+            # уведомляем администратора о сбое
+            try:
+                await bot.send_message(
+                    ADMIN_CHAT_ID,
+                    f"❗️ Error with {symbol} on {exchange_name}: {e}"
+                )
+            except Exception as notify_err:
+                logging.error(f"Failed to notify admin: {notify_err}")
+            continue  # переходим к следующей монете
 
         price_change = data["price_change"]
         volume_change = data["volume_change"]
         price_now = data["price_now"]
 
-        # Проверяем Pump (рост) — если включен и прирост > threshold
+        # Проверяем Pump (рост)
         if pump_on and price_change >= threshold:
             message = format_signal(
                 symbol=symbol,
                 is_pump=True,
+                exchange=exchange_name,
+                price_now=price_now,
+                price_change=price_change,
+                volume_now=data["volume_now"],
+                volume_change=volume_change,
+            )
+            await bot.send_message(chat_id=username, text=message)
+            signals_sent += 1
+            update_user_setting(username, "signals_sent_today", signals_sent)
+
+        # Проверяем Dump (падение)
+        if dump_on and price_change <= -threshold:
+            message = format_signal(
+                symbol=symbol,
+                is_pump=False,
                 exchange=exchange_name,
                 price_now=price_now,
                 price_change=price_change,
