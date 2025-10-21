@@ -20,6 +20,7 @@ def init_db():
             percent_change REAL DEFAULT 1.0,
             signals_per_day INTEGER DEFAULT 5,
             signals_sent_today INTEGER DEFAULT 0,
+            signals_enabled INTEGER DEFAULT 1,
             last_reset DATETIME,
             is_admin INTEGER DEFAULT 0
         )
