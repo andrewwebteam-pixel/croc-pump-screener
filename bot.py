@@ -10,6 +10,7 @@ from utils.binance_api import get_price_change as binance_price_change
 from utils.bybit_api import get_price_change as bybit_price_change
 from utils.formatters import format_signal
 from database import get_user_settings
+import logging
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
@@ -97,6 +98,12 @@ type_alerts_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True
+)
+# Настройка логирования
+logging.basicConfig(
+    filename='pumpscreener.log',
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
 )
 
 # Инициализация базы данных
@@ -324,7 +331,7 @@ async def process_exchange(
         try:
             data = await price_change_func(symbol, timeframe)
         except Exception as e:
-            print(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+            logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
             continue
 
         price_change = data["price_change"]
