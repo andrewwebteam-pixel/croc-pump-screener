@@ -6,6 +6,10 @@ from aiogram.filters import Command
 from config import TELEGRAM_TOKEN
 from database import init_db, activate_key, check_subscription, update_user_setting, get_user_settings
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from utils.binance_api import get_price_change as binance_price_change
+from utils.bybit_api import get_price_change as bybit_price_change
+from utils.formatters import format_signal
+from database import get_user_settings
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
@@ -63,6 +67,7 @@ timeframe_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 # Варианты для минимального процента изменения
 price_options = ["0.5%", "1%", "2%", "5%", "10%", "20%", "50%"]
 price_kb = ReplyKeyboardMarkup(
@@ -243,8 +248,120 @@ async def handle_menu(message: Message):
     else:
         await message.answer("Main menu:", reply_markup=main_menu_kb)
 
+async def check_signals():
+    """
+    Периодически проверяет изменения цен и объёмов для всех активных пользователей.
+    Учитывает их настройки (таймфрейм, порог, включённые биржи, типы сигналов) и отправляет сообщения.
+    """
+    while True:
+        # Для каждого активного пользователя (кроме админов) проверяем подписку
+        conn = sqlite3.connect("keys.db")
+        c = conn.cursor()
+        # получаем список user_names, у которых активный ключ (is_active=1) и ключ не просрочен
+        c.execute("SELECT username FROM access_keys WHERE is_active=1")
+        users = [row[0] for row in c.fetchall()]
+        conn.close()
+
+        for username in users:
+            # пропускаем, если подписка истекла (check_subscription внутри handle_menu, но проверим ещё здесь)
+            if not check_subscription(username):
+                continue
+
+            settings = get_user_settings(username)
+            # число уже отправленных сигналов
+            signals_sent = settings["signals_sent_today"] or 0
+            limit = settings["signals_per_day"]
+
+            # если исчерпал лимит, пропускаем
+            if signals_sent >= limit:
+                continue
+
+            timeframe = settings["timeframe"]
+            threshold = settings["percent_change"]
+            # Настройки Pump/Dump и бирж
+            pump_on = bool(settings["type_pump"])
+            dump_on = bool(settings["type_dump"])
+            binance_on = bool(settings["exchange_binance"])
+            bybit_on = bool(settings["exchange_bybit"])
+
+            # Перебираем биржи
+            if binance_on:
+                await process_exchange(
+                    "Binance", username, timeframe, threshold, pump_on, dump_on, signals_sent, limit, binance_price_change
+                )
+            if bybit_on:
+                await process_exchange(
+                    "Bybit", username, timeframe, threshold, pump_on, dump_on, signals_sent, limit, bybit_price_change
+                )
+
+        # Пауза между итерациями: регулируйте в зависимости от таймфрейма (например, 5 минут = 300 секунд)
+        await asyncio.sleep(300)
+
+async def process_exchange(
+    exchange_name: str,
+    username: str,
+    timeframe: str,
+    threshold: float,
+    pump_on: bool,
+    dump_on: bool,
+    signals_sent: int,
+    limit: int,
+    price_change_func,
+):
+    """
+    Обходит список SYMBOLS, вызывает price_change_func для каждой пары,
+    сравнивает изменение цены с порогом, и отправляет сигнал, если условие выполнено.
+    price_change_func — функция из utils.binance_api или utils.bybit_api.
+    """
+    for symbol in SYMBOLS:
+        # Если уже достигли лимита сигналов, прерываем
+        if signals_sent >= limit:
+            break
+
+        try:
+            data = await price_change_func(symbol, timeframe)
+        except Exception as e:
+            print(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+            continue
+
+        price_change = data["price_change"]
+        volume_change = data["volume_change"]
+        price_now = data["price_now"]
+
+        # Проверяем Pump (рост) — если включен и прирост > threshold
+        if pump_on and price_change >= threshold:
+            message = format_signal(
+                symbol=symbol,
+                is_pump=True,
+                exchange=exchange_name,
+                price_now=price_now,
+                price_change=price_change,
+                volume_now=data["volume_now"],
+                volume_change=volume_change,
+            )
+            await bot.send_message(chat_id=username, text=message)
+            signals_sent += 1
+            update_user_setting(username, "signals_sent_today", signals_sent)
+
+        # Проверяем Dump (падение) — если включен и падение < -threshold
+        if dump_on and price_change <= -threshold:
+            message = format_signal(
+                symbol=symbol,
+                is_pump=False,
+                exchange=exchange_name,
+                price_now=price_now,
+                price_change=price_change,
+                volume_now=data["volume_now"],
+                volume_change=volume_change,
+            )
+            await bot.send_message(chat_id=username, text=message)
+            signals_sent += 1
+            update_user_setting(username, "signals_sent_today", signals_sent)
+
 async def main():
+    asyncio.create_task(check_signals())
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
