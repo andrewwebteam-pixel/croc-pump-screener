@@ -22,6 +22,33 @@ main_menu_kb = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
+# Submenus for Pump/Dump alerts and Settings
+pump_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="⏱️ Timeframe"), KeyboardButton(text="📊 Price change")],
+        [KeyboardButton(text="📡 Signals per day")],
+        [KeyboardButton(text="🔙 Back")],
+    ],
+    resize_keyboard=True
+)
+
+dump_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="⏱️ Timeframe"), KeyboardButton(text="📊 Price change")],
+        [KeyboardButton(text="📡 Signals per day")],
+        [KeyboardButton(text="🔙 Back")],
+    ],
+    resize_keyboard=True
+)
+
+settings_menu_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="💡 Type Alerts")],
+        [KeyboardButton(text="🟡 Binance ON/OFF"), KeyboardButton(text="🔵 Bybit ON/OFF")],
+        [KeyboardButton(text="🔙 Back")],
+    ],
+    resize_keyboard=True
+)
 
 # Инициализация базы данных
 init_db()
@@ -66,6 +93,22 @@ async def cmd_help(message: Message):
         "/activate <key> — Activate your access key.\n"
         "/help — Show this help message."
     )
+
+@dp.message()
+async def handle_menu(message: Message):
+    # Переход в подменю Pump Alerts
+    if message.text == "📈 Pump Alerts":
+        await message.answer("Pump alerts settings. Choose an option:", reply_markup=pump_menu_kb)
+    # Переход в подменю Dump Alerts
+    elif message.text == "📉 Dump Alerts":
+        await message.answer("Dump alerts settings. Choose an option:", reply_markup=dump_menu_kb)
+    # Переход в общий раздел Settings
+    elif message.text == "⚙️ Settings":
+        await message.answer("General settings. Choose an option:", reply_markup=settings_menu_kb)
+    # Возврат в главное меню
+    elif message.text == "🔙 Back":
+        await message.answer("Main menu:", reply_markup=main_menu_kb)
+
 
 async def main():
     await dp.start_polling(bot)
