@@ -2,6 +2,8 @@
 import aiohttp
 import asyncio
 
+from config import PROXY_URL
+
 SEMAPHORE = asyncio.Semaphore(5)
 
 BASE_URL = "https://api.binance.com/api/v3"
@@ -12,7 +14,7 @@ async def get_klines(symbol: str, interval: str, limit: int = 2):
     # ждём свободное "окно" семафора, чтобы не превысить 5 параллельных запросов
     async with SEMAPHORE:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as resp:
+            async with session.get(url, params=params, proxy=PROXY_URL) as resp:
                 return await resp.json()
 
 async def get_price_change(symbol: str, interval: str):
