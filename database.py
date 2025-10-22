@@ -12,6 +12,7 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS user_settings (
             username TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
             exchange_binance INTEGER DEFAULT 1,
             exchange_bybit INTEGER DEFAULT 1,
             type_pump INTEGER DEFAULT 1,
@@ -51,17 +52,17 @@ def add_key(access_key: str, duration_months: int):
     conn.commit()
     conn.close()
 
-def activate_key(access_key: str, username: str) -> bool:
+def activate_key(access_key: str, username: str, user_id: int) -> bool:
     # сначала проверяем админский ключ
     if access_key == ADMIN_ACCESS_KEY:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         # создаём или обновляем запись в user_settings для этого пользователя с is_admin=1
         c.execute("""
-            INSERT INTO user_settings (username, is_admin)
-            VALUES (?, 1)
-            ON CONFLICT(username) DO UPDATE SET is_admin=1
-        """, (username,))
+            INSERT INTO user_settings (username, user_id, is_admin)
+            VALUES (?, ?, 1)
+            ON CONFLICT(username) DO UPDATE SET user_id=?, is_admin=1
+        """, (username, user_id, user_id))
         conn.commit()
         conn.close()
         return True
@@ -85,6 +86,12 @@ def activate_key(access_key: str, username: str) -> bool:
         "UPDATE access_keys SET username=?, activated_at=?, expires_at=?, is_active=1 WHERE access_key=?",
         (username, now, expires_at, access_key),
     )
+    # Создаём запись в user_settings с user_id
+    c.execute("""
+        INSERT INTO user_settings (username, user_id)
+        VALUES (?, ?)
+        ON CONFLICT(username) DO UPDATE SET user_id=?
+    """, (username, user_id, user_id))
     conn.commit()
     conn.close()
     return True
@@ -121,10 +128,9 @@ def get_user_settings(username: str) -> dict:
     c.execute("SELECT * FROM user_settings WHERE username=?", (username,))
     row = c.fetchone()
     if row is None:
-        # если записи нет, создаём её
-        c.execute("INSERT INTO user_settings (username) VALUES (?)", (username,))
-        conn.commit()
-        return get_user_settings(username)
+        # Возвращаем пустой словарь если пользователь не активировал ключ
+        conn.close()
+        return {}
     columns = [desc[0] for desc in c.description]
     conn.close()
     return dict(zip(columns, row))
