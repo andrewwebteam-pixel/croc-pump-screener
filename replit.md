@@ -23,8 +23,9 @@ Preferred communication style: Simple, everyday language.
 - **Critical**: `user_id` (numeric Telegram ID) is required for sending messages via Telegram API - using username strings causes message delivery failures
 
 ## Exchange Integration
-- **Binance API**: REST endpoint `/api/v3/klines` for candlestick data
-- **Bybit API**: REST endpoint `/v5/market/kline` for spot market data
+- **Binance API**: USDT-margined futures endpoint `/fapi/v1/klines` for candlestick data
+- **Bybit API**: Linear perpetual futures endpoint `/v5/market/kline?category=linear` for market data
+- **Market Type**: Uses **futures markets** instead of spot for better alignment with funding rates and long/short ratios
 - **Concurrency Control**: Semaphore-based rate limiting (5 concurrent requests per exchange) to avoid API throttling
 - **Proxy Support**: HTTP proxy configuration for bypassing regional restrictions
 - **Design Pattern**: Separate API modules (`binance_api.py`, `bybit_api.py`) with unified response format for price change and volume metrics
@@ -168,3 +169,31 @@ Updated `bot.py` to use cascading data sources:
 - `BUG-FIXED.md` - Complete documentation
 
 **Test Results**: All 5 free alternative functions working perfectly ✅
+
+---
+
+## October 22, 2025 - Migration to Futures Data
+
+**Change**: Switched from spot market to futures market data for all price monitoring.
+
+**Updates Made**:
+1. **Binance API**: Updated to USDT-margined futures endpoint `https://fapi.binance.com/fapi/v1/klines`
+2. **Bybit API**: Changed category from `"spot"` to `"linear"` for linear perpetual futures
+3. **Free Metrics RSI**: Updated to fetch candles from futures endpoints instead of spot
+
+**Rationale**:
+- Futures data better aligns with funding rates and long/short ratios (futures-specific metrics)
+- Higher liquidity and volume in futures markets
+- More accurate pump/dump detection (leverage trading activity)
+- Consistent data source across all metrics
+
+**Test Results**: All 6 futures endpoints tested successfully ✅
+- Binance Futures: Price data, RSI ✅
+- Bybit Futures: Price data, RSI ✅
+- Funding Rate: 0.0024% ✅
+- Long/Short Ratio: 69.98% / 30.02% ✅
+
+**Impact**: No breaking changes, more accurate signals, better metrics alignment
+
+**Files Changed**: `utils/binance_api.py`, `utils/bybit_api.py`, `utils/free_metrics.py`  
+**Documentation**: See `FUTURES_MIGRATION.md` for technical details
