@@ -162,8 +162,9 @@ async def cmd_activate(message: Message):
 
     access_key = parts[1]
     username = message.from_user.username or str(message.from_user.id)
+    user_id = message.from_user.id
 
-    if activate_key(access_key, username):
+    if activate_key(access_key, username, user_id):
         await message.answer(
             "Your key has been activated successfully! ✅\n"
             "Use the menu below to configure your alerts.",
@@ -195,7 +196,8 @@ async def handle_menu(message: Message):
 
     # Активация ключа
     if state.get("awaiting_key"):
-        if activate_key(text, username):
+        user_id = message.from_user.id
+        if activate_key(text, username, user_id):
             user_states.pop(username, None)
             await message.answer(
                 "Your key has been activated successfully! ✅\n"
@@ -367,17 +369,26 @@ async def check_signals():
     while True:
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
-        c.execute("SELECT username FROM access_keys WHERE is_active=1")
-        users = [row[0] for row in c.fetchall()]
+        # Получаем username и user_id из user_settings
+        c.execute("""
+            SELECT us.username, us.user_id 
+            FROM user_settings us
+            INNER JOIN access_keys ak ON us.username = ak.username
+            WHERE ak.is_active=1
+        """)
+        users = [(row[0], row[1]) for row in c.fetchall()]
         conn.close()
 
-        for username in users:
+        for username, user_id in users:
             if not check_subscription(username):
                 continue
 
             settings = get_user_settings(username)
-            signals_sent = settings["signals_sent_today"] or 0
-            limit = settings["signals_per_day"]
+            if not settings:  # Пропускаем если настройки не найдены
+                continue
+                
+            signals_sent = settings.get("signals_sent_today", 0) or 0
+            limit = settings.get("signals_per_day", 5)
 
             if (
                 settings.get("signals_enabled", 1) == 0
@@ -385,17 +396,18 @@ async def check_signals():
             ):
                 continue
 
-            timeframe = settings["timeframe"]
-            threshold = settings["percent_change"]
-            pump_on = bool(settings["type_pump"])
-            dump_on = bool(settings["type_dump"])
-            binance_on = bool(settings["exchange_binance"])
-            bybit_on = bool(settings["exchange_bybit"])
+            timeframe = settings.get("timeframe", "15m")
+            threshold = settings.get("percent_change", 1.0)
+            pump_on = bool(settings.get("type_pump", 1))
+            dump_on = bool(settings.get("type_dump", 1))
+            binance_on = bool(settings.get("exchange_binance", 1))
+            bybit_on = bool(settings.get("exchange_bybit", 1))
 
             if binance_on:
                 await process_exchange(
                     "Binance",
                     username,
+                    user_id,
                     timeframe,
                     threshold,
                     pump_on,
@@ -409,6 +421,7 @@ async def check_signals():
                 await process_exchange(
                     "Bybit",
                     username,
+                    user_id,
                     timeframe,
                     threshold,
                     pump_on,
@@ -424,6 +437,7 @@ async def check_signals():
 async def process_exchange(
     exchange_name: str,
     username: str,
+    user_id: int,
     timeframe: str,
     threshold: float,
     pump_on: bool,
@@ -491,7 +505,7 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=username, text=message, parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(username, "signals_sent_today", signals_sent)
 
@@ -508,7 +522,7 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=username, text=message, parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(username, "signals_sent_today", signals_sent)
 
