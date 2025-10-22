@@ -111,3 +111,60 @@ Preferred communication style: Simple, everyday language.
 - See `BUGFIX_REPORT.md` for complete deployment instructions
 
 **Files Changed**: `database.py`, `bot.py`
+
+---
+
+## October 22, 2025 - CoinGlass Integration Fix + Free Alternatives
+
+**Problem**: Signal messages were missing RSI, Funding Rate, and Long/Short Ratio data.
+
+**Root Causes Identified**:
+1. **Wrong API header**: Code used `coinglassSecret` but CoinGlass API v4 requires `CG-API-KEY`
+2. **Paid subscription required**: CoinGlass API endpoints for RSI, funding rates, and long/short ratios require a paid plan (minimum $29/month)
+
+**Solutions Implemented**:
+
+### 1. Fixed CoinGlass API Header ✅
+- Updated `utils/coinglass_api.py` to use correct `CG-API-KEY` header
+- API now properly authenticates (but still returns "Upgrade plan" for paid endpoints)
+
+### 2. Implemented Free Alternatives ✅
+Created `utils/free_metrics.py` with 100% free data sources:
+
+**RSI Calculation** (FREE):
+- Fetches recent candles from Binance/Bybit spot API
+- Calculates RSI using standard 14-period algorithm
+- Works on all timeframes (1m, 5m, 15m, 30m, 1h)
+- **Test Result**: ✅ 45.37 (Binance), 45.38 (Bybit)
+
+**Funding Rate** (FREE):
+- Binance Futures API: `https://fapi.binance.com/fapi/v1/fundingRate`
+- Bybit Futures API: `https://api.bybit.com/v5/market/funding/history`
+- No authentication required
+- **Test Result**: ✅ 0.0024% (Binance), 0.0046% (Bybit)
+
+**Long/Short Ratio** (FREE):
+- Binance Global Account Ratio: `https://fapi.binance.com/futures/data/globalLongShortAccountRatio`
+- Shows percentage of long vs short positions
+- No authentication required
+- **Test Result**: ✅ 70.30% Long / 29.70% Short
+
+### 3. Smart Fallback Logic ✅
+Updated `bot.py` to use cascading data sources:
+1. **Try CoinGlass first** (if user has paid subscription)
+2. **Fallback to free APIs** (if CoinGlass returns None)
+3. **Continue gracefully** (if all fail, send signal without those metrics)
+
+**Benefits**:
+- ✅ Bot works immediately without paid CoinGlass subscription
+- ✅ Free metrics are accurate and reliable
+- ✅ Automatic upgrade if user adds CoinGlass paid plan later
+- ✅ No code changes needed to switch between free/paid
+
+**Files Changed**: 
+- `utils/coinglass_api.py` - Fixed header
+- `utils/free_metrics.py` - New file with free alternatives
+- `bot.py` - Added fallback logic and imports
+- `BUG-FIXED.md` - Complete documentation
+
+**Test Results**: All 5 free alternative functions working perfectly ✅
