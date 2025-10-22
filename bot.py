@@ -19,6 +19,11 @@ from utils.coinglass_api import (
     get_funding_rate,
     get_long_short_ratio,
 )
+from utils.free_metrics import (
+    get_funding_rate_free,
+    get_long_short_ratio_free,
+    get_rsi_from_exchange,
+)
 from utils.binance_api import get_price_change as binance_price_change
 from utils.bybit_api import get_price_change as bybit_price_change
 from utils.formatters import format_signal
@@ -459,22 +464,36 @@ async def process_exchange(
         volume_change = data["volume_change"]
         price_now = data["price_now"]
 
-        # Метрики CoinGlass с безопасной обработкой
+        # Метрики CoinGlass с безопасной обработкой и fallback на бесплатные API
         try:
             rsi_value = await get_rsi(symbol, timeframe)
+            if rsi_value is None:
+                # Fallback: Calculate RSI from exchange data (FREE)
+                rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
         except Exception as e:
             logging.error(f"Error fetching RSI for {symbol}: {e}")
-            rsi_value = None
+            # Fallback: Calculate RSI from exchange data (FREE)
+            try:
+                rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
+            except:
+                rsi_value = None
 
         try:
             funding_rate = await get_funding_rate(
                 exchange_name, symbol, interval="h1"
             )
+            if funding_rate is None:
+                # Fallback: Use free futures API
+                funding_rate = await get_funding_rate_free(exchange_name, symbol)
         except Exception as e:
             logging.error(
                 f"Error fetching funding rate for {symbol} on {exchange_name}: {e}"
             )
-            funding_rate = None
+            # Fallback: Use free futures API
+            try:
+                funding_rate = await get_funding_rate_free(exchange_name, symbol)
+            except:
+                funding_rate = None
 
         time_type_map = {
             "1m": "m1",
@@ -484,12 +503,29 @@ async def process_exchange(
             "1h": "h1",
         }
         ls_time_type = time_type_map.get(timeframe, "h1")
+        
+        # Period mapping for Binance free API (5m, 15m, 30m, 1h, etc.)
+        ls_period_map = {
+            "1m": "5m",
+            "5m": "5m",
+            "15m": "15m",
+            "30m": "30m",
+            "1h": "1h",
+        }
+        ls_period = ls_period_map.get(timeframe, "5m")
 
         try:
             long_short_ratio = await get_long_short_ratio(symbol, time_type=ls_time_type)
+            if long_short_ratio is None:
+                # Fallback: Use free Binance API
+                long_short_ratio = await get_long_short_ratio_free(symbol, ls_period)
         except Exception as e:
             logging.error(f"Error fetching long/short ratio for {symbol}: {e}")
-            long_short_ratio = None
+            # Fallback: Use free Binance API
+            try:
+                long_short_ratio = await get_long_short_ratio_free(symbol, ls_period)
+            except:
+                long_short_ratio = None
 
         # Pump / Dump сигналы
         if pump_on and price_change >= threshold:
