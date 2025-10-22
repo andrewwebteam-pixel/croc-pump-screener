@@ -148,7 +148,8 @@ async def get_rsi_from_exchange(exchange: str, symbol: str, interval: str = "15m
     async with SEMAPHORE:
         try:
             if exchange.lower() == "binance":
-                url = "https://api.binance.com/api/v3/klines"
+                # Use Binance USDT-margined futures for RSI calculation
+                url = "https://fapi.binance.com/fapi/v1/klines"
                 params = {"symbol": symbol, "interval": interval, "limit": 20}
                 
                 async with aiohttp.ClientSession() as session:
@@ -163,7 +164,8 @@ async def get_rsi_from_exchange(exchange: str, symbol: str, interval: str = "15m
                 bybit_interval = interval_map.get(interval, "15")
                 
                 url = "https://api.bybit.com/v5/market/kline"
-                params = {"category": "spot", "symbol": symbol, "interval": bybit_interval, "limit": 20}
+                # Use linear perpetual futures for RSI calculation
+                params = {"category": "linear", "symbol": symbol, "interval": bybit_interval, "limit": 20}
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(url, params=params, proxy=PROXY_URL, timeout=aiohttp.ClientTimeout(total=5)) as resp:
