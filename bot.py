@@ -4,7 +4,11 @@ import sqlite3
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 
 from config import TELEGRAM_TOKEN
 from database import (
@@ -14,7 +18,11 @@ from database import (
     update_user_setting,
     get_user_settings,
 )
-from utils.coinglass_api import get_rsi, get_funding_rate, get_long_short_ratio
+from utils.coinglass_api import (
+    get_rsi,
+    get_funding_rate,
+    get_long_short_ratio,
+)
 from utils.binance_api import get_price_change as binance_price_change
 from utils.bybit_api import get_price_change as bybit_price_change
 from utils.formatters import format_signal
@@ -419,6 +427,21 @@ async def process_exchange(
         volume_change = data["volume_change"]
         price_now = data["price_now"]
 
+        # Дополнительные метрики
+        rsi_value = await get_rsi(symbol, timeframe)
+        funding_rate = await get_funding_rate(exchange_name, symbol, interval="h1")
+
+        time_type_map = {
+            "1m": "m1",
+            "5m": "m5",
+            "15m": "m15",
+            "30m": "m30",
+            "1h": "h1",
+        }
+        ls_time_type = time_type_map.get(timeframe, "h1")
+        long_short_ratio = await get_long_short_ratio(symbol, time_type=ls_time_type)
+
+        # Pump / Dump сигналы
         if pump_on and price_change >= threshold:
             message = format_signal(
                 symbol=symbol,
@@ -428,6 +451,9 @@ async def process_exchange(
                 price_change=price_change,
                 volume_now=data["volume_now"],
                 volume_change=volume_change,
+                rsi=rsi_value,
+                funding=funding_rate,
+                long_short_ratio=long_short_ratio,
             )
             await bot.send_message(chat_id=username, text=message)
             signals_sent += 1
@@ -442,6 +468,9 @@ async def process_exchange(
                 price_change=price_change,
                 volume_now=data["volume_now"],
                 volume_change=volume_change,
+                rsi=rsi_value,
+                funding=funding_rate,
+                long_short_ratio=long_short_ratio,
             )
             await bot.send_message(chat_id=username, text=message)
             signals_sent += 1
