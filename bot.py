@@ -4,11 +4,7 @@ import sqlite3
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import (
-    Message,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-)
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 from config import TELEGRAM_TOKEN
 from database import (
@@ -158,7 +154,8 @@ async def cmd_activate(message: Message):
 
     if activate_key(access_key, username):
         await message.answer(
-            "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
+            "Your key has been activated successfully! ✅\n"
+            "Use the menu below to configure your alerts.",
             reply_markup=main_menu_kb,
         )
     else:
@@ -190,7 +187,8 @@ async def handle_menu(message: Message):
         if activate_key(text, username):
             user_states.pop(username, None)
             await message.answer(
-                "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
+                "Your key has been activated successfully! ✅\n"
+                "Use the menu below to configure your alerts.",
                 reply_markup=main_menu_kb,
             )
         else:
@@ -269,7 +267,8 @@ async def handle_menu(message: Message):
     elif text == "🔓 Logout":
         user_states[username] = {"awaiting_key": True}
         await message.answer(
-            "You have been logged out. Please enter your license key to activate your subscription again.",
+            "You have been logged out. Please enter your license key to activate "
+            "your subscription again.",
             reply_markup=None,
         )
 
@@ -296,7 +295,8 @@ async def handle_menu(message: Message):
         new_val = 0 if settings["type_pump"] == 1 else 1
         update_user_setting(username, "type_pump", new_val)
         await message.answer(
-            f"Pump alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=type_alerts_kb
+            f"Pump alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=type_alerts_kb,
         )
 
     elif text == "Dump ON/OFF":
@@ -304,7 +304,8 @@ async def handle_menu(message: Message):
         new_val = 0 if settings["type_dump"] == 1 else 1
         update_user_setting(username, "type_dump", new_val)
         await message.answer(
-            f"Dump alerts are now {'ON' if new_val else 'OFF'}.", reply_markup=type_alerts_kb
+            f"Dump alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=type_alerts_kb,
         )
 
     elif text == "🟡 Binance ON/OFF":
@@ -330,14 +331,17 @@ async def handle_menu(message: Message):
         new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
         update_user_setting(username, "signals_enabled", new_val)
         await message.answer(
-            f"Signals are now {'ON' if new_val else 'OFF'}.", reply_markup=settings_menu_kb
+            f"Signals are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=settings_menu_kb,
         )
 
     elif text == "🔙 Back":
         current_menu = user_states.get(username, {}).get("menu")
         if current_menu == "type_alerts":
             user_states[username]["menu"] = "settings"
-            await message.answer("Back to Settings menu.", reply_markup=settings_menu_kb)
+            await message.answer(
+                "Back to Settings menu.", reply_markup=settings_menu_kb
+            )
         elif current_menu in ("pump", "dump", "tier"):
             user_states.pop(username, None)
             await message.answer("Main menu:", reply_markup=main_menu_kb)
@@ -364,7 +368,10 @@ async def check_signals():
             signals_sent = settings["signals_sent_today"] or 0
             limit = settings["signals_per_day"]
 
-            if settings.get("signals_enabled", 1) == 0 or signals_sent >= limit:
+            if (
+                settings.get("signals_enabled", 1) == 0
+                or signals_sent >= limit
+            ):
                 continue
 
             timeframe = settings["timeframe"]
@@ -427,9 +434,22 @@ async def process_exchange(
         volume_change = data["volume_change"]
         price_now = data["price_now"]
 
-        # Дополнительные метрики
-        rsi_value = await get_rsi(symbol, timeframe)
-        funding_rate = await get_funding_rate(exchange_name, symbol, interval="h1")
+        # Метрики CoinGlass с безопасной обработкой
+        try:
+            rsi_value = await get_rsi(symbol, timeframe)
+        except Exception as e:
+            logging.error(f"Error fetching RSI for {symbol}: {e}")
+            rsi_value = None
+
+        try:
+            funding_rate = await get_funding_rate(
+                exchange_name, symbol, interval="h1"
+            )
+        except Exception as e:
+            logging.error(
+                f"Error fetching funding rate for {symbol} on {exchange_name}: {e}"
+            )
+            funding_rate = None
 
         time_type_map = {
             "1m": "m1",
@@ -439,7 +459,12 @@ async def process_exchange(
             "1h": "h1",
         }
         ls_time_type = time_type_map.get(timeframe, "h1")
-        long_short_ratio = await get_long_short_ratio(symbol, time_type=ls_time_type)
+
+        try:
+            long_short_ratio = await get_long_short_ratio(symbol, time_type=ls_time_type)
+        except Exception as e:
+            logging.error(f"Error fetching long/short ratio for {symbol}: {e}")
+            long_short_ratio = None
 
         # Pump / Dump сигналы
         if pump_on and price_change >= threshold:
