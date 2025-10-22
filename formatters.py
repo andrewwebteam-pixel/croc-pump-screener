@@ -31,6 +31,6 @@ def format_signal(
         long_pct, short_pct = long_short_ratio
         lines.append(f"🔄 Long/Short: {long_pct:.2f}% / {short_pct:.2f}%")
     # Добавьте свои реферальные ссылки здесь (замените на свои URL)
-    lines.append("🔗 Register on Binance (ref) — your_ref_link")
-    lines.append("🔗 Register on Bybit (ref) — your_ref_link")
+    lines.append("[🔗 Register on Binance](https://accounts.binance.com/register?ref=444333168)")
+    lines.append("[🔗 Register on Bybit](https://www.bybit.com/invite?ref=3GKKD83)")
     return "\n".join(lines)
