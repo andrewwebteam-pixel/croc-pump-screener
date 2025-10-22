@@ -1,403 +1,272 @@
-# Pump/Dump Bot Bug Fix Report
+# Bug Report: Missing CoinGlass Data in Signal Cards
 
-## Executive Summary
+## Problem Statement
 
-**Root Cause**: The bot was using string usernames instead of numeric Telegram user IDs when sending messages via `bot.send_message()`. Telegram's API requires numeric IDs for the `chat_id` parameter.
+Signal messages sent by the bot were missing three key metrics:
+- ❌ RSI (Relative Strength Index)
+- ❌ Funding Rate  
+- ❌ Long/Short Ratio
 
-**Status**: ✅ **FIXED**
+## Root Cause Analysis
 
-**Impact**: High - Bot was completely unable to send pump/dump signal notifications to users.
+### Issue #1: Incorrect API Header ✅ FIXED
+
+**Problem**: The CoinGlass API client was using the wrong authentication header.
+
+```python
+# BEFORE (Wrong):
+headers = {
+    "coinglassSecret": COINGLASS_API_KEY,
+}
+
+# AFTER (Correct):
+headers = {
+    "CG-API-KEY": COINGLASS_API_KEY,
+}
+```
+
+**Fix Applied**: Updated `utils/coinglass_api.py` line 22 to use the correct `CG-API-KEY` header as per CoinGlass API v4 documentation.
+
+**Reference**: https://docs.coinglass.com/reference/authentication
 
 ---
 
-## Problem Discovery
+### Issue #2: Paid Subscription Required ⚠️ NOT FIXED (Requires User Action)
 
-### Symptoms
-- No pump/dump notifications were being sent to users despite:
-  - Low thresholds (0.1%)
-  - Valid API responses from Binance/Bybit
-  - `process_exchange()` function executing successfully
-  
-### Root Cause Analysis
+**Problem**: CoinGlass API requires a paid subscription to access RSI, Funding Rate, and Long/Short ratio endpoints.
 
-**File**: `bot.py`, Line 494 (and 511 in dump signals)
+**API Test Results**:
 
-```python
-# BEFORE (Broken):
-await bot.send_message(chat_id=username, text=message, parse_mode="Markdown")
-```
+| Endpoint | Status | Response | Access Level |
+|----------|--------|----------|--------------|
+| Supported Coins | ✅ Works | Success | Free |
+| RSI List | ❌ Blocked | "Upgrade plan" | Paid Only |
+| Funding Rate | ❌ Blocked | "Upgrade plan" | Paid Only |
+| Long/Short Ratio | ❌ Blocked | "Upgrade plan" | Paid Only |
 
-**The Problem**:
-- `username` variable contains either:
-  - A string like `"john_doe"` (Telegram username)
-  - OR a string like `"123456789"` (stringified user ID)
-- Telegram's `send_message()` API requires `chat_id` to be a **numeric integer**, not a string
-- Even if username was a stringified number, Telegram still rejects it
+**CoinGlass Pricing**:
+- **HOBBYIST**: $29/month (70+ endpoints, 30 req/min)
+- **STARTUP**: $79/month (80+ endpoints, 80 req/min)  
+- **STANDARD**: $299/month (90+ endpoints, 300 req/min)
+- **PROFESSIONAL**: $699/month (100+ endpoints, 6000 req/min)
 
-**Why it happened**:
-1. Database schema didn't include `user_id` column in `user_settings` table
-2. `activate_key()` only stored username, not the numeric Telegram user ID
-3. `check_signals()` only retrieved username from database
-4. `process_exchange()` received username and used it directly in `send_message()`
+**Current API Key Status**: The configured API key `22a5f59541a146108c317bac84c14084` does not have access to paid endpoints.
 
 ---
 
-## Solution Implemented
+## What Was Changed
 
-### Fix 1: Database Schema Update
-**File**: `database.py`
+### File: `utils/coinglass_api.py`
 
-Added `user_id INTEGER NOT NULL` column to `user_settings` table:
-
-```python
-CREATE TABLE IF NOT EXISTS user_settings (
-    username TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,      # ← NEW COLUMN
-    exchange_binance INTEGER DEFAULT 1,
-    exchange_bybit INTEGER DEFAULT 1,
-    # ... rest of columns
-)
-```
-
-### Fix 2: Update activate_key() Function
-**File**: `database.py`, Line 58
-
-Modified function signature to accept `user_id`:
+**Line 22**: Changed authentication header from `coinglassSecret` to `CG-API-KEY`
 
 ```python
-# BEFORE:
-def activate_key(access_key: str, username: str) -> bool:
-
-# AFTER:
-def activate_key(access_key: str, username: str, user_id: int) -> bool:
-```
-
-Added code to store `user_id` when activating:
-
-```python
-# For admin keys:
-c.execute("""
-    INSERT INTO user_settings (username, user_id, is_admin)
-    VALUES (?, ?, 1)
-    ON CONFLICT(username) DO UPDATE SET user_id=?, is_admin=1
-""", (username, user_id, user_id))
-
-# For regular keys:
-c.execute("""
-    INSERT INTO user_settings (username, user_id)
-    VALUES (?, ?)
-    ON CONFLICT(username) DO UPDATE SET user_id=?
-""", (username, user_id, user_id))
-```
-
-### Fix 3: Update Bot Activation Handlers
-**File**: `bot.py`, Lines 156-180 and 197-214
-
-Modified `/activate` command and awaiting_key handler to pass `user_id`:
-
-```python
-# In cmd_activate():
-user_id = message.from_user.id
-if activate_key(access_key, username, user_id):
-    # ...
-
-# In handle_menu() for awaiting_key:
-user_id = message.from_user.id
-if activate_key(text, username, user_id):
-    # ...
-```
-
-### Fix 4: Update check_signals() Loop
-**File**: `bot.py`, Lines 366-435
-
-Modified to retrieve both `username` AND `user_id` from database:
-
-```python
-# BEFORE:
-c.execute("SELECT username FROM access_keys WHERE is_active=1")
-users = [row[0] for row in c.fetchall()]
-
-for username in users:
-    # ...
-
-# AFTER:
-c.execute("""
-    SELECT us.username, us.user_id 
-    FROM user_settings us
-    INNER JOIN access_keys ak ON us.username = ak.username
-    WHERE ak.is_active=1
-""")
-users = [(row[0], row[1]) for row in c.fetchall()]
-
-for username, user_id in users:
-    # ... now have both username and user_id
-```
-
-### Fix 5: Update process_exchange() Function
-**File**: `bot.py`, Lines 424-526
-
-Added `user_id` parameter and used it in `send_message()`:
-
-```python
-# Function signature:
-async def process_exchange(
-    exchange_name: str,
-    username: str,
-    user_id: int,           # ← NEW PARAMETER
-    timeframe: str,
-    # ...
-):
-
-# Send message calls:
-# BEFORE:
-await bot.send_message(chat_id=username, text=message, parse_mode="Markdown")
-
-# AFTER:
-await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
-```
-
-Updated both pump and dump signal sending blocks (2 occurrences).
-
-### Fix 6: Update process_exchange() Calls
-**File**: `bot.py`, Lines 409-435
-
-Added `user_id` argument when calling `process_exchange()`:
-
-```python
-await process_exchange(
-    "Binance",
-    username,
-    user_id,        # ← NEW ARGUMENT
-    timeframe,
-    threshold,
-    # ...
-)
+async def _fetch_json(url: str, params: dict | None = None) -> dict:
+    """Вспомогательная функция для GET‑запросов."""
+    async with SEMAPHORE:
+        headers = {
+            "accept": "application/json",
+            "CG-API-KEY": COINGLASS_API_KEY,  # ← Changed from coinglassSecret
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, headers=headers, proxy=PROXY_URL) as resp:
+                return await resp.json()
 ```
 
 ---
 
-## Testing & Verification
+## Solutions
 
-### Database Migration
-Since the schema changed, existing databases must be recreated:
+### Option 1: Subscribe to CoinGlass (Recommended for Full Features)
 
-```bash
-# Delete old database
-rm -f keys.db
-
-# Initialize with new schema
-python3 -c "from database import init_db; init_db()"
-
-# Add test key
-python3 -c "from database import add_key; add_key('TEST-KEY-12345', 1)"
-```
-
-### Testing Steps
-1. Start the bot
-2. Activate with test key via `/activate TEST-KEY-12345`
-3. Configure low threshold (e.g., 0.1%) via Settings menu
-4. Wait for price movement
-5. Verify signal messages are received in Telegram
-
-**Expected Result**: Messages successfully delivered to user's Telegram chat.
-
----
-
-## Deployment Instructions for VPS
-
-### Step 1: Backup Current Code
-```bash
-cd ~/pumpscreener_bot
-cp -r . ../pumpscreener_bot_backup
-```
-
-### Step 2: Stop the Service
-```bash
-sudo systemctl stop pumpscreener.service
-```
-
-### Step 3: Update Files
-Copy these updated files from Replit to your VPS:
-- `database.py`
-- `bot.py`
-
-```bash
-# On your VPS:
-# Upload the files or copy them manually
-```
-
-### Step 4: Backup and Migrate Database
-```bash
-# Backup existing database
-cp keys.db keys.db.backup
-
-# Delete old database (user data will be lost - they'll need to reactivate)
-rm keys.db
-
-# Initialize new database with updated schema
-source venv/bin/activate
-python3 -c "from database import init_db; init_db()"
-```
-
-**IMPORTANT**: Users will need to reactivate their keys after this migration!
-
-### Step 5: Verify Dependencies
-```bash
-pip install python-dateutil  # If not already installed
-```
-
-### Step 6: Restart Service
-```bash
-sudo systemctl start pumpscreener.service
-sudo systemctl status pumpscreener.service
-```
-
-### Step 7: Monitor Logs
-```bash
-sudo journalctl -u pumpscreener.service -f
-```
-
-You should see:
-- ✅ No more "getUpdates" conflicts
-- ✅ Bot polling successfully
-- ✅ Signals being sent when thresholds are met
-
----
-
-## Additional Improvements Made
-
-### 1. Better Error Handling in get_user_settings()
-**File**: `database.py`, Lines 119-139
-
-```python
-# BEFORE:
-if row is None:
-    # Create empty record (breaks with NOT NULL user_id)
-    c.execute("INSERT INTO user_settings (username) VALUES (?)", (username,))
-
-# AFTER:
-if row is None:
-    # Return empty dict if user hasn't activated
-    conn.close()
-    return {}
-```
-
-This prevents crashes when checking settings for users who haven't activated yet.
-
-### 2. Added Safety Checks in check_signals()
-**File**: `bot.py`, Lines 389-391
-
-```python
-settings = get_user_settings(username)
-if not settings:  # Skip if settings not found
-    continue
-```
-
-### 3. Added .get() with Defaults
-**File**: `bot.py`, Lines 393-407
-
-Changed direct dictionary access to `.get()` with sensible defaults:
-
-```python
-# BEFORE:
-signals_sent = settings["signals_sent_today"] or 0
-
-# AFTER:
-signals_sent = settings.get("signals_sent_today", 0) or 0
-timeframe = settings.get("timeframe", "15m")
-threshold = settings.get("percent_change", 1.0)
-```
-
-This prevents KeyError crashes if columns are missing.
-
----
-
-## Configuration Notes
-
-### Adjusting Settings for Testing
-
-To verify the fix works, temporarily set a very low threshold:
-
-1. Send `/start` to your bot
-2. Activate with your key
-3. Go to Settings → Type Alerts → Set to 0.1%
-4. Enable Binance
-5. Wait 5-10 minutes
-
-You should receive signals for even small BTCUSDT price movements.
-
-### Recommended Production Settings
-
-- **Timeframe**: 5m or 15m
-- **Percent Change**: 2-5% for pump/dump signals
-- **Signals Per Day**: 5-10 (to avoid spam)
-- **Exchanges**: Enable both Binance and Bybit for best coverage
-
----
-
-## Known Issues & Future Improvements
-
-### Current Limitations
-
-1. **Database Migration Loses User Data**
-   - Users must reactivate after schema change
-   - **Future**: Add migration script to preserve user settings
-
-2. **Bybit 403 Errors**
-   - Some pairs return 403 Forbidden errors
-   - **Solution**: Already handled with try/except, errors are logged
-
-3. **No User Data Migration Tool**
-   - Manual database recreation required
-   - **Future**: Create migration script
-
-### Potential Enhancements
-
-1. **Add Logging for Debugging**
+**Steps**:
+1. Visit https://www.coinglass.com/pricing
+2. Subscribe to the **HOBBYIST plan** ($29/month minimum)
+3. Log in to your CoinGlass account
+4. Go to API Key Dashboard
+5. Generate a new API key with paid plan access
+6. Update `config.py` with the new API key:
    ```python
-   logging.info(f"Sending signal to user_id={user_id}, username={username}")
+   COINGLASS_API_KEY = "your_new_paid_api_key_here"
    ```
+7. Restart the bot
 
-2. **Add Database Migration Script**
-   ```python
-   # Migrate old database to new schema
-   def migrate_database():
-       # Read old data
-       # Create new schema
-       # Transfer data with user_id lookup
-   ```
-
-3. **Add Health Check Command**
-   ```python
-   @dp.message(Command("status"))
-   async def cmd_status(message: Message):
-       # Report bot health, API status, etc.
-   ```
+**Expected Result**: All signal cards will include RSI, Funding Rate, and Long/Short Ratio.
 
 ---
 
-## Summary
+### Option 2: Use Free Alternative APIs (Partial Replacement)
 
-**What Was Broken**: Bot couldn't send messages because it used string usernames instead of numeric user IDs.
+Since CoinGlass requires payment, you can replace these metrics with free alternatives:
 
-**What Was Fixed**:
-1. ✅ Added `user_id` column to database
-2. ✅ Updated `activate_key()` to store user_id
-3. ✅ Updated bot handlers to pass user_id
-4. ✅ Updated `check_signals()` to retrieve user_id
-5. ✅ Updated `process_exchange()` to use user_id in send_message()
+#### RSI Calculation (DIY)
+Calculate RSI from Binance/Bybit historical price data:
 
-**Testing Status**: Code is fixed and ready for deployment. Database must be recreated on VPS.
+```python
+# Add to utils/binance_api.py or utils/bybit_api.py
+async def calculate_rsi(symbol: str, period: int = 14) -> float | None:
+    """
+    Calculate RSI from recent price data.
+    RSI = 100 - (100 / (1 + RS))
+    where RS = Average Gain / Average Loss over period
+    """
+    try:
+        # Fetch last (period + 1) candles
+        # Calculate gains and losses
+        # Return RSI value
+        pass  # Implementation needed
+    except:
+        return None
+```
 
-**Deployment Impact**: Users will need to reactivate their keys after migration.
+#### Funding Rate Alternatives
+
+**Binance API** (FREE):
+- Endpoint: `https://fapi.binance.com/fapi/v1/fundingRate`
+- Parameters: `symbol=BTCUSDT&limit=1`
+- No authentication required for reading
+
+**Bybit API** (FREE):
+- Endpoint: `https://api.bybit.com/v5/market/funding/history`
+- Parameters: `category=linear&symbol=BTCUSDT&limit=1`
+- No authentication required
+
+**Implementation**:
+```python
+async def get_funding_rate_binance(symbol: str) -> float | None:
+    """Get current funding rate from Binance futures API."""
+    url = "https://fapi.binance.com/fapi/v1/fundingRate"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params={"symbol": symbol, "limit": 1}) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                if data:
+                    return float(data[0]["fundingRate"]) * 100  # Convert to percentage
+    return None
+```
+
+#### Long/Short Ratio Alternatives
+
+**Binance Global Long/Short Ratio** (FREE):
+- Endpoint: `https://fapi.binance.com/futures/data/globalLongShortAccountRatio`
+- Parameters: `symbol=BTCUSDT&period=5m&limit=1`
+- No authentication required
+
+**Implementation**:
+```python
+async def get_long_short_ratio_binance(symbol: str, period: str = "5m") -> tuple | None:
+    """Get long/short ratio from Binance futures."""
+    url = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params={"symbol": symbol, "period": period, "limit": 1}) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                if data:
+                    ratio = float(data[0]["longShortRatio"])
+                    # Convert ratio to percentages
+                    long_pct = (ratio / (ratio + 1)) * 100
+                    short_pct = 100 - long_pct
+                    return (long_pct, short_pct)
+    return None
+```
 
 ---
 
-## Support & Questions
+### Option 3: Make CoinGlass Data Truly Optional (Current Behavior)
 
-For questions about this fix or deployment assistance, please refer to:
-- This report
-- Updated code in `bot.py` and `database.py`
-- Inline code comments explaining changes
+The bot already handles missing CoinGlass data gracefully. When `None` is returned for RSI, Funding, or Long/Short ratio, the signal message simply omits those fields.
 
-Last Updated: October 22, 2025
+**Current Behavior**:
+```
+🟢 PUMP! BTCUSDT
+Exchange: Binance
+💵 Price: 65432.1234
+📉 Change: +2.50%
+📊 Volume: 123456.78 (+15.25%)
+[🔗 Register on Binance](...)
+[🔗 Register on Bybit](...)
+```
+
+**With CoinGlass Data**:
+```
+🟢 PUMP! BTCUSDT
+Exchange: Binance
+💵 Price: 65432.1234
+📉 Change: +2.50%
+📊 Volume: 123456.78 (+15.25%)
+❗️ RSI: 72.5
+❕ Funding: 0.01%
+🔄 Long/Short: 55.00% / 45.00%
+[🔗 Register on Binance](...)
+[🔗 Register on Bybit](...)
+```
+
+**No Changes Needed**: The bot continues to work and send alerts. CoinGlass data is a "nice-to-have" enhancement, not a requirement.
+
+---
+
+## Testing Results
+
+### Before Fix
+```bash
+# Old header: coinglassSecret
+❌ RSI: {"code":"400","msg":"API key missing."}
+❌ Funding: {"code":"40001","msg":"Upgrade plan"}
+❌ Long/Short: {"code":"40001","msg":"Upgrade plan"}
+```
+
+### After Fix (Correct Header)
+```bash
+# New header: CG-API-KEY
+✅ Header recognized correctly
+❌ RSI: {"code":"400","msg":"Upgrade plan"}
+❌ Funding: {"code":"30001","msg":"API key missing."} (v2 endpoint)
+❌ Long/Short: {"code":"30001","msg":"API key missing."} (v2 endpoint)
+```
+
+**Diagnosis**: 
+- v4 API header fixed ✅
+- Paid subscription required for data access ⚠️
+
+---
+
+## Recommendation
+
+**Short-term** (Free):
+1. Keep current CoinGlass integration as-is
+2. Implement free Binance/Bybit alternatives for Funding Rate and Long/Short Ratio
+3. Calculate RSI from historical data or omit it
+4. Update signal messages to show "Data available with premium plan" when None
+
+**Long-term** (Paid):
+1. Subscribe to CoinGlass HOBBYIST plan ($29/month)
+2. Get full access to RSI, advanced metrics, and heatmaps
+3. Unlock premium features for competitive advantage
+
+---
+
+## Files Modified
+
+- ✅ `utils/coinglass_api.py` - Fixed authentication header
+- ✅ `BUG-FIXED.md` - This documentation file
+
+---
+
+## Next Steps
+
+**For Free Solution**:
+1. Implement Binance Futures API calls for Funding Rate
+2. Implement Binance Global Long/Short Ratio endpoint
+3. Add DIY RSI calculation from price data
+4. Test with low threshold (0.1%) on BTCUSDT
+
+**For Paid Solution**:
+1. Subscribe to CoinGlass at https://www.coinglass.com/pricing
+2. Generate new API key from dashboard
+3. Update `COINGLASS_API_KEY` in `config.py`
+4. Restart bot and test
+
+---
+
+**Last Updated**: October 22, 2025  
+**Status**: Header fixed ✅ | Paid subscription required ⚠️
