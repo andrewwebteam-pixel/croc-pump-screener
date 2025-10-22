@@ -2,6 +2,7 @@
 import aiohttp
 import asyncio
 from config import COINGLASS_API_KEY
+from config import PROXY_URL
 
 # Ограничиваем число одновременных запросов к CoinGlass
 SEMAPHORE = asyncio.Semaphore(5)
@@ -18,7 +19,7 @@ async def _fetch_json(url: str, params: dict | None = None) -> dict:
             "coinglassSecret": COINGLASS_API_KEY,
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers) as resp:
+            async with session.get(url, params=params, headers=headers, proxy=PROXY_URL) as resp:
                 return await resp.json()
 
 async def get_rsi(symbol: str, interval: str) -> float | None:
