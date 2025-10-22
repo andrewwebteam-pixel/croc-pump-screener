@@ -455,7 +455,7 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=username, text=message)
+            await bot.send_message(chat_id=username, text=message, parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(username, "signals_sent_today", signals_sent)
 
@@ -472,7 +472,7 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=username, text=message)
+            await bot.send_message(chat_id=username, text=message, parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(username, "signals_sent_today", signals_sent)
 
