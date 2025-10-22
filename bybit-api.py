@@ -21,7 +21,7 @@ async def get_klines(symbol: str, interval: str, limit: int = 2):
     interval_val = INTERVAL_MAP[interval]
     url = f"{BASE_URL}/kline"
     params = {
-        "category": "spot",
+        "category": "linear",  # Linear perpetual futures
         "symbol": symbol,
         "interval": interval_val,
         "limit": limit,
