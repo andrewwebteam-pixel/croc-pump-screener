@@ -16,7 +16,7 @@ async def _fetch_json(url: str, params: dict | None = None) -> dict:
     async with SEMAPHORE:
         headers = {
             "accept": "application/json",
-            "coinglassSecret": COINGLASS_API_KEY,
+            "CG-API-KEY": COINGLASS_API_KEY,
         }
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, headers=headers, proxy=PROXY_URL) as resp:
