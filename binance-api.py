@@ -6,7 +6,8 @@ from config import PROXY_URL
 
 SEMAPHORE = asyncio.Semaphore(5)
 
-BASE_URL = "https://api.binance.com/api/v3"
+# USDT-margined futures endpoint
+BASE_URL = "https://fapi.binance.com/fapi/v1"
 
 async def get_klines(symbol: str, interval: str, limit: int = 2):
     url = f"{BASE_URL}/klines"
