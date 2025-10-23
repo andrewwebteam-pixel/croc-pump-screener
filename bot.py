@@ -44,8 +44,14 @@ init_db()
 # --- Клавиатуры ---
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📈 Pump Alerts"), KeyboardButton(text="📉 Dump Alerts")],
-        [KeyboardButton(text="⚙️ Settings"), KeyboardButton(text="🎟️ My Tier")],
+        [
+            KeyboardButton(text="📈 Pump Alerts"),
+            KeyboardButton(text="📉 Dump Alerts")
+        ],
+        [
+            KeyboardButton(text="⚙️ Settings"),
+            KeyboardButton(text="🎟️ My Tier")
+        ],
         [KeyboardButton(text="🔓 Logout")],
     ],
     resize_keyboard=True,
@@ -53,7 +59,10 @@ main_menu_kb = ReplyKeyboardMarkup(
 
 pump_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⏱️ Timeframe"), KeyboardButton(text="📊 Price change")],
+        [
+            KeyboardButton(text="⏱️ Timeframe"),
+            KeyboardButton(text="📊 Price change")
+        ],
         [KeyboardButton(text="📡 Signals per day")],
         [KeyboardButton(text="🔙 Back")],
     ],
@@ -62,7 +71,10 @@ pump_menu_kb = ReplyKeyboardMarkup(
 
 dump_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⏱️ Timeframe"), KeyboardButton(text="📊 Price change")],
+        [
+            KeyboardButton(text="⏱️ Timeframe"),
+            KeyboardButton(text="📊 Price change")
+        ],
         [KeyboardButton(text="📡 Signals per day")],
         [KeyboardButton(text="🔙 Back")],
     ],
@@ -72,7 +84,10 @@ dump_menu_kb = ReplyKeyboardMarkup(
 settings_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="💡 Type Alerts")],
-        [KeyboardButton(text="🟡 Binance ON/OFF"), KeyboardButton(text="🔵 Bybit ON/OFF")],
+        [
+            KeyboardButton(text="🟡 Binance ON/OFF"),
+            KeyboardButton(text="🔵 Bybit ON/OFF")
+        ],
         [KeyboardButton(text="🔔 Signals ON/OFF")],
         [KeyboardButton(text="🔙 Back")],
     ],
@@ -81,7 +96,10 @@ settings_menu_kb = ReplyKeyboardMarkup(
 
 type_alerts_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="Pump ON/OFF"), KeyboardButton(text="Dump ON/OFF")],
+        [
+            KeyboardButton(text="Pump ON/OFF"),
+            KeyboardButton(text="Dump ON/OFF")
+        ],
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True,
@@ -124,7 +142,19 @@ signals_kb = ReplyKeyboardMarkup(
 
 # --- Глобальные переменные ---
 user_states = {}
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"]
+
+# Verified high-volume USDT-margined perpetual futures pairs on both Binance and Bybit
+# All 45 symbols tested and confirmed valid (see FUTURES_SIGNAL_FIX.md lines 151-160)
+SYMBOLS = [
+    "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "APTUSDT", "ARBUSDT",
+    "ATOMUSDT", "AVAXUSDT", "BANDUSDT", "BCHUSDT", "BNBUSDT", "BTCUSDT",
+    "COMPUSDT", "CRVUSDT", "DOGEUSDT", "DOTUSDT", "DYDXUSDT", "EGLDUSDT",
+    "ETCUSDT", "ETHUSDT", "FILUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT",
+    "HBARUSDT", "ICPUSDT", "INJUSDT", "KAVAUSDT", "LDOUSDT", "LINKUSDT",
+    "LTCUSDT", "MANAUSDT", "NEARUSDT", "OPUSDT", "SANDUSDT", "SNXUSDT",
+    "SOLUSDT", "SUIUSDT", "TIAUSDT", "TONUSDT", "TRXUSDT", "UNIUSDT",
+    "XLMUSDT", "XRPUSDT", "ZILUSDT",
+]
 
 # --- Команды ---
 
@@ -141,7 +171,9 @@ async def cmd_start(message: Message):
         )
     else:
         user_states[user_id] = {"awaiting_key": True}
-        await message.answer("Hello! 👋 Please enter your license key to activate your subscription.")
+        await message.answer(
+            "Hello! 👋 Please enter your license key to activate your subscription."
+        )
 
 
 @dp.message(Command("activate"))
@@ -155,13 +187,14 @@ async def cmd_activate(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username or str(user_id)
 
-    if activate_key(access_key, username):
+    if activate_key(access_key, username, user_id):
         await message.answer(
             "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
             reply_markup=main_menu_kb,
         )
     else:
-        await message.answer("Invalid key or this key has already been used by another user. ❌")
+        await message.answer(
+            "Invalid key or this key has already been used by another user. ❌")
 
 
 @dp.message(Command("help"))
@@ -170,8 +203,193 @@ async def cmd_help(message: Message):
         "Here are the available commands 📋:\n"
         "/start — Start the bot and get activation instructions.\n"
         "/activate <key> — Activate your access key.\n"
-        "/help — Show this help message."
-    )
+        "/help — Show this help message.")
+
+
+# --- Message Handler for Menus and Key Activation ---
+
+
+@dp.message()
+async def handle_menu(message: Message):
+    user_id = message.from_user.id
+    username = message.from_user.username or str(user_id)
+    text = message.text.strip()
+    state = user_states.get(user_id, {})
+
+    # License key activation
+    if state.get("awaiting_key"):
+        if activate_key(text, username, user_id):
+            user_states.pop(user_id, None)
+            await message.answer(
+                "Your key has been activated successfully! ✅\n"
+                "Use the menu below to configure your alerts.",
+                reply_markup=main_menu_kb,
+            )
+        else:
+            await message.answer(
+                "Invalid key or this key has already been used by another user. ❌"
+            )
+        return
+
+    # Parameter selection
+    if "setting" in state:
+        if state["setting"] == "timeframe" and text in timeframe_options:
+            update_user_setting(user_id, "timeframe", text)
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
+            await message.answer("Timeframe updated.", reply_markup=kb)
+            return
+
+        if state["setting"] == "percent_change" and text in price_options:
+            value = float(text.strip("%"))
+            update_user_setting(user_id, "percent_change", value)
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
+            await message.answer("Percent change updated.", reply_markup=kb)
+            return
+
+        if state["setting"] == "signals_per_day" and text.isdigit():
+            update_user_setting(user_id, "signals_per_day", int(text))
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
+            await message.answer("Signals per day updated.", reply_markup=kb)
+            return
+
+        if text == "🔙 Back":
+            state.pop("setting", None)
+            kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
+            await message.answer("Returning to menu.", reply_markup=kb)
+            return
+
+    # Main menu navigation
+    if text == "📈 Pump Alerts":
+        user_states[user_id] = {"menu": "pump"}
+        await message.answer(
+            "Configure your Pump Alert settings below:",
+            reply_markup=pump_menu_kb,
+        )
+
+    elif text == "📉 Dump Alerts":
+        user_states[user_id] = {"menu": "dump"}
+        await message.answer(
+            "Configure your Dump Alert settings below:",
+            reply_markup=dump_menu_kb,
+        )
+
+    elif text == "⚙️ Settings":
+        await message.answer(
+            "Configure your exchange and signal preferences:",
+            reply_markup=settings_menu_kb,
+        )
+
+    elif text == "💡 Type Alerts":
+        user_states[user_id] = {"menu": "type_alerts"}
+        await message.answer(
+            "Configure which alert types you want to receive:",
+            reply_markup=type_alerts_kb,
+        )
+
+    elif text == "🎟️ My Tier":
+        settings = get_user_settings(user_id)
+        if settings:
+            await message.answer(
+                f"Your subscription details:\n"
+                f"- Username: {settings.get('username', 'N/A')}\n"
+                f"- Timeframe: {settings.get('timeframe', '15m')}\n"
+                f"- Threshold: {settings.get('percent_change', 1.0)}%\n"
+                f"- Signals/day: {settings.get('signals_per_day', 5)}",
+                reply_markup=main_menu_kb,
+            )
+        else:
+            await message.answer("No subscription found.", reply_markup=main_menu_kb)
+
+    elif text == "🔓 Logout":
+        user_states.pop(user_id, None)
+        await message.answer(
+            "You have been logged out. Send /start to log back in."
+        )
+
+    # Pump/Dump menu options
+    elif text == "⏱️ Timeframe":
+        menu = user_states.get(user_id, {}).get("menu", "pump")
+        user_states[user_id] = {"menu": menu, "setting": "timeframe"}
+        await message.answer(
+            "Select your preferred timeframe:",
+            reply_markup=timeframe_kb,
+        )
+
+    elif text == "📊 Price change":
+        menu = user_states.get(user_id, {}).get("menu", "pump")
+        user_states[user_id] = {"menu": menu, "setting": "percent_change"}
+        await message.answer(
+            "Select price change threshold:",
+            reply_markup=price_kb,
+        )
+
+    elif text == "📡 Signals per day":
+        menu = user_states.get(user_id, {}).get("menu", "pump")
+        user_states[user_id] = {"menu": menu, "setting": "signals_per_day"}
+        await message.answer(
+            "Select number of signals per day:",
+            reply_markup=signals_kb,
+        )
+
+    elif text == "Pump ON/OFF":
+        settings = get_user_settings(user_id)
+        new_val = 0 if settings["type_pump"] == 1 else 1
+        update_user_setting(user_id, "type_pump", new_val)
+        await message.answer(
+            f"Pump alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=type_alerts_kb,
+        )
+
+    elif text == "Dump ON/OFF":
+        settings = get_user_settings(user_id)
+        new_val = 0 if settings["type_dump"] == 1 else 1
+        update_user_setting(user_id, "type_dump", new_val)
+        await message.answer(
+            f"Dump alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=type_alerts_kb,
+        )
+
+    elif text == "🟡 Binance ON/OFF":
+        settings = get_user_settings(user_id)
+        new_val = 0 if settings["exchange_binance"] == 1 else 1
+        update_user_setting(user_id, "exchange_binance", new_val)
+        await message.answer(
+            f"Binance alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=settings_menu_kb,
+        )
+
+    elif text == "🔵 Bybit ON/OFF":
+        settings = get_user_settings(user_id)
+        new_val = 0 if settings["exchange_bybit"] == 1 else 1
+        update_user_setting(user_id, "exchange_bybit", new_val)
+        await message.answer(
+            f"Bybit alerts are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=settings_menu_kb,
+        )
+
+    elif text == "🔔 Signals ON/OFF":
+        settings = get_user_settings(user_id)
+        new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
+        update_user_setting(user_id, "signals_enabled", new_val)
+        await message.answer(
+            f"Signals are now {'ON' if new_val else 'OFF'}.",
+            reply_markup=settings_menu_kb,
+        )
+
+    elif text == "🔙 Back":
+        current_menu = user_states.get(user_id, {}).get("menu")
+        if current_menu == "type_alerts":
+            user_states[user_id] = {"menu": "settings"}
+            await message.answer("Settings menu:", reply_markup=settings_menu_kb)
+        elif current_menu in ("pump", "dump", "tier"):
+            user_states.pop(user_id, None)
+            await message.answer("Main menu:", reply_markup=main_menu_kb)
+        else:
+            await message.answer("Main menu:", reply_markup=main_menu_kb)
+
 
 # --- Основная логика сигналов ---
 
@@ -194,7 +412,8 @@ async def process_exchange(
         try:
             data = await price_change_func(symbol, timeframe)
         except Exception as e:
-            logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+            logging.error(
+                f"Error fetching data for {symbol} on {exchange_name}: {e}")
             continue
 
         price_change = data.get("price_change", 0)
@@ -205,7 +424,8 @@ async def process_exchange(
         try:
             rsi_value = await get_rsi(symbol, timeframe)
         except Exception:
-            rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
+            rsi_value = await get_rsi_from_exchange(exchange_name, symbol,
+                                                    timeframe)
 
         try:
             funding_rate = await get_funding_rate(exchange_name, symbol, "h1")
@@ -213,7 +433,8 @@ async def process_exchange(
             funding_rate = await get_funding_rate_free(exchange_name, symbol)
 
         try:
-            long_short_ratio = await get_long_short_ratio(symbol, time_type="h1")
+            long_short_ratio = await get_long_short_ratio(symbol,
+                                                          time_type="h1")
         except Exception:
             long_short_ratio = await get_long_short_ratio_free(symbol, "1h")
 
@@ -230,7 +451,9 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id,
+                                   text=message,
+                                   parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(user_id, "signals_sent_today", signals_sent)
 
@@ -247,7 +470,9 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id,
+                                   text=message,
+                                   parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(user_id, "signals_sent_today", signals_sent)
 
@@ -256,7 +481,8 @@ async def check_signals():
     while True:
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
-        c.execute("SELECT username, user_id FROM access_keys WHERE is_active=1")
+        c.execute(
+            "SELECT username, user_id FROM access_keys WHERE is_active=1")
         users = [(row[0], row[1]) for row in c.fetchall()]
         conn.close()
 
@@ -270,7 +496,8 @@ async def check_signals():
 
             signals_sent = settings.get("signals_sent_today", 0)
             limit = settings.get("signals_per_day", 5)
-            if settings.get("signals_enabled", 1) == 0 or signals_sent >= limit:
+            if settings.get("signals_enabled",
+                            1) == 0 or signals_sent >= limit:
                 continue
 
             timeframe = settings.get("timeframe", "15m")
@@ -308,6 +535,7 @@ async def check_signals():
 
         await asyncio.sleep(300)
 
+
 # --- Основной запуск ---
 
 
@@ -317,4 +545,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asynci
