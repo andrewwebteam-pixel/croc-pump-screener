@@ -4,7 +4,8 @@
 TELEGRAM_TOKEN = "8295160858:AAF5uZ_KstjZlYwf3tfl88UyCM-DaBdYq8c"
 
 # List of admin usernames (Telegram user names without @)
-ADMIN_USERNAMES = ["anb_capateam"]
+ADMIN_CHAT_ID = 7136791310  
+
 # This key grants unlimited access and never expires. Keep it secret.
 ADMIN_ACCESS_KEY = "ADMIN-ROOT-ACCESS"
 
@@ -22,3 +23,6 @@ COINGLASS_API_KEY = "22a5f59541a146108c317bac84c14084"
 DEFAULT_TIMEFRAME = "5m"
 DEFAULT_PERCENT_CHANGE = 1.0
 DEFAULT_SIGNALS_PER_DAY = 10
+
+PROXY_URL = "http://user191751:avldk7@93.127.153.92:9734"
+
