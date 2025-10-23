@@ -33,6 +33,7 @@ def init_db():
             access_key TEXT UNIQUE NOT NULL,
             duration_months INTEGER NOT NULL,
             username TEXT,
+            user_id INTEGER,
             activated_at DATETIME,
             expires_at DATETIME,
             is_active INTEGER DEFAULT 0
@@ -77,14 +78,31 @@ def activate_key(access_key: str, username: str, user_id: int) -> bool:
         return False
     duration_months, is_active, existing_user = row
     if is_active == 1:
-        conn.close()
-        return existing_user == username
-    # активируем: считаем expires_at и привязываем к username
+        # Key already activated - allow re-activation by same user to update user_id
+        if existing_user == username:
+            # Update user_id for this existing activation (important for migration)
+            c.execute(
+                "UPDATE access_keys SET user_id=? WHERE access_key=?",
+                (user_id, access_key)
+            )
+            # Also ensure user_settings has correct user_id
+            c.execute(
+                "UPDATE user_settings SET user_id=? WHERE username=?",
+                (user_id, username)
+            )
+            conn.commit()
+            conn.close()
+            return True
+        else:
+            # Key activated by different user - reject
+            conn.close()
+            return False
+    # активируем: считаем expires_at и привязываем к username и user_id
     now = datetime.utcnow()
     expires_at = now + relativedelta(months=duration_months)
     c.execute(
-        "UPDATE access_keys SET username=?, activated_at=?, expires_at=?, is_active=1 WHERE access_key=?",
-        (username, now, expires_at, access_key),
+        "UPDATE access_keys SET username=?, user_id=?, activated_at=?, expires_at=?, is_active=1 WHERE access_key=?",
+        (username, user_id, now, expires_at, access_key),
     )
     # Создаём запись в user_settings с user_id
     c.execute("""
