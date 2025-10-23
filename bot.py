@@ -481,12 +481,17 @@ async def check_signals():
     while True:
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
+        # Query user_settings instead of access_keys to get active users
         c.execute(
-            "SELECT username, user_id FROM access_keys WHERE is_active=1")
+            "SELECT username, user_id FROM user_settings")
         users = [(row[0], row[1]) for row in c.fetchall()]
         conn.close()
 
         for username, user_id in users:
+            # Skip invalid user_ids (legacy data from before migration)
+            if user_id is None or user_id == 0:
+                continue
+                
             if not check_subscription(user_id):
                 continue
 
