@@ -44,8 +44,14 @@ init_db()
 # --- Клавиатуры ---
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📈 Pump Alerts"), KeyboardButton(text="📉 Dump Alerts")],
-        [KeyboardButton(text="⚙️ Settings"), KeyboardButton(text="🎟️ My Tier")],
+        [
+            KeyboardButton(text="📈 Pump Alerts"),
+            KeyboardButton(text="📉 Dump Alerts")
+        ],
+        [
+            KeyboardButton(text="⚙️ Settings"),
+            KeyboardButton(text="🎟️ My Tier")
+        ],
         [KeyboardButton(text="🔓 Logout")],
     ],
     resize_keyboard=True,
@@ -53,7 +59,10 @@ main_menu_kb = ReplyKeyboardMarkup(
 
 pump_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⏱️ Timeframe"), KeyboardButton(text="📊 Price change")],
+        [
+            KeyboardButton(text="⏱️ Timeframe"),
+            KeyboardButton(text="📊 Price change")
+        ],
         [KeyboardButton(text="📡 Signals per day")],
         [KeyboardButton(text="🔙 Back")],
     ],
@@ -62,7 +71,10 @@ pump_menu_kb = ReplyKeyboardMarkup(
 
 dump_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⏱️ Timeframe"), KeyboardButton(text="📊 Price change")],
+        [
+            KeyboardButton(text="⏱️ Timeframe"),
+            KeyboardButton(text="📊 Price change")
+        ],
         [KeyboardButton(text="📡 Signals per day")],
         [KeyboardButton(text="🔙 Back")],
     ],
@@ -84,7 +96,10 @@ settings_menu_kb = ReplyKeyboardMarkup(
 
 type_alerts_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="Pump ON/OFF"), KeyboardButton(text="Dump ON/OFF")],
+        [
+            KeyboardButton(text="Pump ON/OFF"),
+            KeyboardButton(text="Dump ON/OFF")
+        ],
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True,
@@ -128,16 +143,15 @@ signals_kb = ReplyKeyboardMarkup(
 # --- Глобальные переменные ---
 user_states = {}
 SYMBOLS = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT",
-    "SOLUSDT", "DOGEUSDT", "DOTUSDT", "MATICUSDT", "SHIBUSDT",
-    "AVAXUSDT", "LTCUSDT", "TRXUSDT", "LINKUSDT", "FILUSDT",
-    "ATOMUSDT", "BCHUSDT", "ETCUSDT", "XLMUSDT", "APEUSDT",
-    "OPUSDT", "CHZUSDT", "FETUSDT", "INJUSDT", "NEARUSDT",
-    "ARBUSDT", "PEPEUSDT", "FLOKIUSDT", "APTUSDT", "SUIUSDT",
-    "SANDUSDT", "AXSUSDT", "GALAUSDT", "MANAUSDT", "LDOUSDT",
-    "TIAUSDT", "RNDRUSDT", "FTMUSDT", "DYDXUSDT", "MKRUSDT",
-    "KAVAUSDT", "EOSUSDT", "GMTUSDT", "CELRUSDT", "LUNCUSDT",
-    "CRVUSDT"
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "SOLUSDT",
+    "DOGEUSDT", "MATICUSDT", "DOTUSDT", "AVAXUSDT", "TRXUSDT", "LTCUSDT",
+    "LINKUSDT", "BCHUSDT", "ETCUSDT", "ATOMUSDT", "FILUSDT", "XLMUSDT",
+    "NEARUSDT", "APTUSDT", "APEUSDT", "OPUSDT", "SUIUSDT", "ARBUSDT",
+    "INJUSDT", "FETUSDT", "RNDRUSDT", "LDOUSDT", "DYDXUSDT", "FTMUSDT",
+    "KAVAUSDT", "EOSUSDT", "GMTUSDT", "SANDUSDT", "MANAUSDT", "TIAUSDT",
+    "GALAUSDT", "ALGOUSDT", "COMPUSDT", "MKRUSDT", "GRTUSDT", "EGLDUSDT",
+    "ADAUSDT", "BANDUSDT", "AUDIOUSDT", "HBARUSDT", "ZILUSDT", "AAVEUSDT",
+    "SNXUSDT", "CRVUSDT"
 ]
 
 # --- Команды ---
@@ -146,7 +160,8 @@ SYMBOLS = [
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     username = message.from_user.username or str(message.from_user.id)
-    if check_subscription(username) and not user_states.get(username, {}).get("awaiting_key"):
+    if check_subscription(username) and not user_states.get(
+            username, {}).get("awaiting_key"):
         await message.answer(
             "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
             reply_markup=main_menu_kb,
@@ -177,8 +192,7 @@ async def cmd_activate(message: Message):
         )
     else:
         await message.answer(
-            "Invalid key or this key has already been used by another user. ❌"
-        )
+            "Invalid key or this key has already been used by another user. ❌")
 
 
 @dp.message(Command("help"))
@@ -187,8 +201,8 @@ async def cmd_help(message: Message):
         "Here are the available commands 📋:\n"
         "/start — Start the bot and get activation instructions.\n"
         "/activate <key> — Activate your access key.\n"
-        "/help — Show this help message."
-    )
+        "/help — Show this help message.")
+
 
 # --- Обработка меню ---
 
@@ -248,15 +262,18 @@ async def handle_menu(message: Message):
     # --- Главное меню ---
     if text == "📈 Pump Alerts":
         user_states[username] = {"menu": "pump"}
-        await message.answer("Pump alerts settings:", reply_markup=pump_menu_kb)
+        await message.answer("Pump alerts settings:",
+                             reply_markup=pump_menu_kb)
 
     elif text == "📉 Dump Alerts":
         user_states[username] = {"menu": "dump"}
-        await message.answer("Dump alerts settings:", reply_markup=dump_menu_kb)
+        await message.answer("Dump alerts settings:",
+                             reply_markup=dump_menu_kb)
 
     elif text == "⚙️ Settings":
         user_states[username] = {"menu": "settings"}
-        await message.answer("General settings:", reply_markup=settings_menu_kb)
+        await message.answer("General settings:",
+                             reply_markup=settings_menu_kb)
 
     elif text == "🎟️ My Tier":
         user_states[username] = {"menu": "tier"}
@@ -265,7 +282,7 @@ async def handle_menu(message: Message):
         c.execute(
             "SELECT duration_months, activated_at, expires_at "
             "FROM access_keys WHERE username=? AND is_active=1",
-            (username,),
+            (username, ),
         )
         key_data = c.fetchone()
         conn.close()
@@ -280,7 +297,8 @@ async def handle_menu(message: Message):
                 reply_markup=tier_menu_kb,
             )
         else:
-            await message.answer("No active subscription found.", reply_markup=tier_menu_kb)
+            await message.answer("No active subscription found.",
+                                 reply_markup=tier_menu_kb)
 
     elif text == "🔓 Logout":
         user_states[username] = {"awaiting_key": True}
@@ -292,9 +310,8 @@ async def handle_menu(message: Message):
 
     elif text == "💡 Type Alerts":
         user_states[username]["menu"] = "type_alerts"
-        await message.answer(
-            "Select which alerts to enable/disable:", reply_markup=type_alerts_kb
-        )
+        await message.answer("Select which alerts to enable/disable:",
+                             reply_markup=type_alerts_kb)
 
     elif text == "⏱️ Timeframe":
         user_states[username]["setting"] = "timeframe"
@@ -302,11 +319,13 @@ async def handle_menu(message: Message):
 
     elif text == "📊 Price change":
         user_states[username]["setting"] = "percent_change"
-        await message.answer("Select minimum percent change:", reply_markup=price_kb)
+        await message.answer("Select minimum percent change:",
+                             reply_markup=price_kb)
 
     elif text == "📡 Signals per day":
         user_states[username]["setting"] = "signals_per_day"
-        await message.answer("Select number of signals per day:", reply_markup=signals_kb)
+        await message.answer("Select number of signals per day:",
+                             reply_markup=signals_kb)
 
     elif text == "Pump ON/OFF":
         settings = get_user_settings(username)
@@ -357,9 +376,8 @@ async def handle_menu(message: Message):
         current_menu = user_states.get(username, {}).get("menu")
         if current_menu == "type_alerts":
             user_states[username]["menu"] = "settings"
-            await message.answer(
-                "Back to Settings menu.", reply_markup=settings_menu_kb
-            )
+            await message.answer("Back to Settings menu.",
+                                 reply_markup=settings_menu_kb)
         elif current_menu in ("pump", "dump", "tier"):
             user_states.pop(username, None)
             await message.answer("Main menu:", reply_markup=main_menu_kb)
@@ -391,14 +409,12 @@ async def check_signals():
             settings = get_user_settings(username)
             if not settings:  # Пропускаем если настройки не найдены
                 continue
-                
+
             signals_sent = settings.get("signals_sent_today", 0) or 0
             limit = settings.get("signals_per_day", 5)
 
-            if (
-                settings.get("signals_enabled", 1) == 0
-                or signals_sent >= limit
-            ):
+            if (settings.get("signals_enabled", 1) == 0
+                    or signals_sent >= limit):
                 continue
 
             timeframe = settings.get("timeframe", "15m")
@@ -457,7 +473,8 @@ async def process_exchange(
         try:
             data = await price_change_func(symbol, timeframe)
         except Exception as e:
-            logging.error(f"Error fetching data for {symbol} on {exchange_name}: {e}")
+            logging.error(
+                f"Error fetching data for {symbol} on {exchange_name}: {e}")
             continue
 
         price_change = data["price_change"]
@@ -469,29 +486,33 @@ async def process_exchange(
             rsi_value = await get_rsi(symbol, timeframe)
             if rsi_value is None:
                 # Fallback: Calculate RSI from exchange data (FREE)
-                rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
+                rsi_value = await get_rsi_from_exchange(
+                    exchange_name, symbol, timeframe)
         except Exception as e:
             logging.error(f"Error fetching RSI for {symbol}: {e}")
             # Fallback: Calculate RSI from exchange data (FREE)
             try:
-                rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
+                rsi_value = await get_rsi_from_exchange(
+                    exchange_name, symbol, timeframe)
             except:
                 rsi_value = None
 
         try:
-            funding_rate = await get_funding_rate(
-                exchange_name, symbol, interval="h1"
-            )
+            funding_rate = await get_funding_rate(exchange_name,
+                                                  symbol,
+                                                  interval="h1")
             if funding_rate is None:
                 # Fallback: Use free futures API
-                funding_rate = await get_funding_rate_free(exchange_name, symbol)
+                funding_rate = await get_funding_rate_free(
+                    exchange_name, symbol)
         except Exception as e:
             logging.error(
                 f"Error fetching funding rate for {symbol} on {exchange_name}: {e}"
             )
             # Fallback: Use free futures API
             try:
-                funding_rate = await get_funding_rate_free(exchange_name, symbol)
+                funding_rate = await get_funding_rate_free(
+                    exchange_name, symbol)
             except:
                 funding_rate = None
 
@@ -503,7 +524,7 @@ async def process_exchange(
             "1h": "h1",
         }
         ls_time_type = time_type_map.get(timeframe, "h1")
-        
+
         # Period mapping for Binance free API (5m, 15m, 30m, 1h, etc.)
         ls_period_map = {
             "1m": "5m",
@@ -515,15 +536,18 @@ async def process_exchange(
         ls_period = ls_period_map.get(timeframe, "5m")
 
         try:
-            long_short_ratio = await get_long_short_ratio(symbol, time_type=ls_time_type)
+            long_short_ratio = await get_long_short_ratio(
+                symbol, time_type=ls_time_type)
             if long_short_ratio is None:
                 # Fallback: Use free Binance API
-                long_short_ratio = await get_long_short_ratio_free(symbol, ls_period)
+                long_short_ratio = await get_long_short_ratio_free(
+                    symbol, ls_period)
         except Exception as e:
             logging.error(f"Error fetching long/short ratio for {symbol}: {e}")
             # Fallback: Use free Binance API
             try:
-                long_short_ratio = await get_long_short_ratio_free(symbol, ls_period)
+                long_short_ratio = await get_long_short_ratio_free(
+                    symbol, ls_period)
             except:
                 long_short_ratio = None
 
@@ -541,7 +565,9 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id,
+                                   text=message,
+                                   parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(username, "signals_sent_today", signals_sent)
 
@@ -558,7 +584,9 @@ async def process_exchange(
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
             )
-            await bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id,
+                                   text=message,
+                                   parse_mode="Markdown")
             signals_sent += 1
             update_user_setting(username, "signals_sent_today", signals_sent)
 
