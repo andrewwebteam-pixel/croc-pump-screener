@@ -159,15 +159,18 @@ SYMBOLS = [
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    username = message.from_user.username or str(message.from_user.id)
-    if check_subscription(username) and not user_states.get(
-            username, {}).get("awaiting_key"):
+    username = message_id = message.from_user.id
+    username = message.from_user.username or str(user_id)
+    
+    # Use user_id for authentication check (immutable, unlike username)
+    if check_subscription(user_id):
         await message.answer(
             "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
             reply_markup=main_menu_kb,
         )
     else:
-        user_states[username] = {"awaiting_key": True}
+        # Use user_id as key in user_states to ensure consistency
+        user_states[user_id_key": True}
         await message.answer(
             "Hello! 👋 Please enter your license key to activate your subscription."
         )
@@ -209,16 +212,16 @@ async def cmd_help(message: Message):
 
 @dp.message()
 async def handle_menu(message: Message):
-    username = message.from_user.username or str(message.from_user.id)
+    username = message_id = message.from_user.id
+    username = message.from_user.username or str(user_id)
     text = message.text.strip()
-    state = user_states.get(username, {})
+    # Use user_id as key in user_states for consistency
+    state = user_states.get(user_id, {})
 
     # Активация ключа
     if state.get("awaiting_key"):
-        user_id = message.from_user.id
         if activate_key(text, username, user_id):
-            user_states.pop(username, None)
-            await message.answer(
+            user_states.pop(user_id      await message.answer(
                 "Your key has been activated successfully! ✅\n"
                 "Use the menu below to configure your alerts.",
                 reply_markup=main_menu_kb,
@@ -232,7 +235,7 @@ async def handle_menu(message: Message):
     # --- Выбор параметров ---
     if "setting" in state:
         if state["setting"] == "timeframe" and text in timeframe_options:
-            update_user_setting(username, "timeframe", text)
+            update_user_setting(username, "timefra_id, "timeframe", text)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Timeframe updated.", reply_markup=kb)
@@ -240,14 +243,14 @@ async def handle_menu(message: Message):
 
         if state["setting"] == "percent_change" and text in price_options:
             value = float(text.strip("%"))
-            update_user_setting(username, "percent_change", value)
+            update_user_setting(user_id, "percent_change", value)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Percent change updated.", reply_markup=kb)
             return
 
         if state["setting"] == "signals_per_day" and text.isdigit():
-            update_user_setting(username, "signals_per_day", int(text))
+            update_user_setting(user_id_day", int(text))
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Signals per day updated.", reply_markup=kb)
@@ -261,22 +264,22 @@ async def handle_menu(message: Message):
 
     # --- Главное меню ---
     if text == "📈 Pump Alerts":
-        user_states[username] = {"menu": "pump"}
+        user_states[username] = {"menu_id] = {"menu": "pump"}
         await message.answer("Pump alerts settings:",
                              reply_markup=pump_menu_kb)
 
     elif text == "📉 Dump Alerts":
-        user_states[username] = {"menu": "dump"}
+        user_states[user_id] = {"menu": "dump"}
         await message.answer("Dump alerts settings:",
                              reply_markup=dump_menu_kb)
 
     elif text == "⚙️ Settings":
-        user_states[username] = {"menu": "settings"}
+        user_states[user_id] = {"menu": "settings"}
         await message.answer("General settings:",
                              reply_markup=settings_menu_kb)
 
     elif text == "🎟️ My Tier":
-        user_states[username] = {"menu": "tier"}
+        user_states[user_idtier"}
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
         c.execute(
@@ -301,7 +304,7 @@ async def handle_menu(message: Message):
                                  reply_markup=tier_menu_kb)
 
     elif text == "🔓 Logout":
-        user_states[username] = {"awaiting_key": True}
+        user_states[username] = {"awai_id] = {"awaiting_key": True}
         await message.answer(
             "You have been logged out. Please enter your license key to activate "
             "your subscription again.",
@@ -309,78 +312,78 @@ async def handle_menu(message: Message):
         )
 
     elif text == "💡 Type Alerts":
-        user_states[username]["menu"] = "type_alerts"
+        user_states[user_id]["menu"] = "type_alerts"
         await message.answer("Select which alerts to enable/disable:",
                              reply_markup=type_alerts_kb)
 
     elif text == "⏱️ Timeframe":
-        user_states[username]["setting"] = "timeframe"
+        user_states[user_id]["setting"] = "timeframe"
         await message.answer("Select timeframe:", reply_markup=timeframe_kb)
 
     elif text == "📊 Price change":
-        user_states[username]["setting"] = "percent_change"
+        user_states[user_id]["setting"] = "percent_change"
         await message.answer("Select minimum percent change:",
                              reply_markup=price_kb)
 
     elif text == "📡 Signals per day":
-        user_states[username]["setting"] = "signals_per_day"
+        user_states[user_id "signals_per_day"
         await message.answer("Select number of signals per day:",
                              reply_markup=signals_kb)
 
     elif text == "Pump ON/OFF":
         settings = get_user_settings(username)
+        _id)
         new_val = 0 if settings["type_pump"] == 1 else 1
-        update_user_setting(username, "type_pump", new_val)
+        update_user_setting(user_id, "type_pump", new_val)
         await message.answer(
             f"Pump alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=type_alerts_kb,
         )
 
     elif text == "Dump ON/OFF":
-        settings = get_user_settings(username)
+        settings = get_user_settings(user_id)
         new_val = 0 if settings["type_dump"] == 1 else 1
-        update_user_setting(username, "type_dump", new_val)
+        update_user_setting(user_id, "type_dump", new_val)
         await message.answer(
             f"Dump alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=type_alerts_kb,
         )
 
     elif text == "🟡 Binance ON/OFF":
-        settings = get_user_settings(username)
+        settings = get_user_settings(user_id)
         new_val = 0 if settings["exchange_binance"] == 1 else 1
-        update_user_setting(username, "exchange_binance", new_val)
+        update_user_setting(user_id, "exchange_binance", new_val)
         await message.answer(
             f"Binance alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
 
     elif text == "🔵 Bybit ON/OFF":
-        settings = get_user_settings(username)
+        settings = get_user_settings(user_id)
         new_val = 0 if settings["exchange_bybit"] == 1 else 1
-        update_user_setting(username, "exchange_bybit", new_val)
+        update_user_setting(user_id, "exchange_bybit", new_val)
         await message.answer(
             f"Bybit alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
 
     elif text == "🔔 Signals ON/OFF":
-        settings = get_user_settings(username)
+        settings = get_user_settings(user_id)
         new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
-        update_user_setting(username, "signals_enabled", new_val)
+        update_user_setting(user_idbled", new_val)
         await message.answer(
             f"Signals are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
 
     elif text == "🔙 Back":
-        current_menu = user_states.get(username, {}).get("menu")
+        current_menu = user_states.get(username, {}).get(_id, {}).get("menu")
         if current_menu == "type_alerts":
-            user_states[username]["menu"] = "settings"
+            user_states[user_id]["menu"] = "settings"
             await message.answer("Back to Settings menu.",
                                  reply_markup=settings_menu_kb)
         elif current_menu in ("pump", "dump", "tier"):
-            user_states.pop(username, None)
-            await message.answer("Main menu:", reply_markup=main_menu_kb)
+            user_states.pop(user_id      await message.answer("Main menu:", reply_markup=main_menu_kb)
         else:
             await message.answer("Main menu:", reply_markup=main_menu_kb)
 
@@ -403,12 +406,12 @@ async def check_signals():
         conn.close()
 
         for username, user_id in users:
-            if not check_subscription(username):
-                continue
+            if not check_s# Use user_id for authentication check (immutable)
+            if not check_subscription(user_id     continue
 
             settings = get_user_settings(username)
-            if not settings:  # Пропускаем если настройки не найдены
-                continue
+        _id)
+            if not settings:  # Skip if settings not found   continue
 
             signals_sent = settings.get("signals_sent_today", 0) or 0
             limit = settings.get("signals_per_day", 5)
@@ -569,7 +572,7 @@ async def process_exchange(
                                    text=message,
                                    parse_mode="Markdown")
             signals_sent += 1
-            update_user_setting(username, "signals_sent_today", signals_sent)
+            update_user_setting(username, "signals_id, "signals_sent_today", signals_sent)
 
         elif dump_on and price_change <= -threshold:
             message = format_signal(
@@ -588,7 +591,7 @@ async def process_exchange(
                                    text=message,
                                    parse_mode="Markdown")
             signals_sent += 1
-            update_user_setting(username, "signals_sent_today", signals_sent)
+            update_user_setting(user_idt_today", signals_sent)
 
 
 # --- Основной запуск ---
