@@ -96,17 +96,28 @@ def activate_key(access_key: str, username: str, user_id: int) -> bool:
     conn.close()
     return True
 
-def check_subscription(username: str) -> bool:
+def check_subscription(user_id: int) -> bool:
+    """
+    Check if a user has an active subscription based on their numeric Telegram user_id.
+    This is more reliable than using username which can change.
+    """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # если пользователь — админ, пропускаем дальнейшие проверки
-    c.execute("SELECT is_admin FROM user_settings WHERE username=?", (username,))
+    # Check if user is admin
+    c.execute("SELECT is_admin, username FROM user_settings WHERE user_id=?", (user_id,))
     user = c.fetchone()
     if user and user[0] == 1:
         conn.close()
         return True
-
-    # ... прежняя логика проверки срока действия обычного ключа ...
+    
+    # If user not found in user_settings, they haven't activated yet
+    if user is None:
+        conn.close()
+        return False
+    
+    username = user[1]  # Get username for access_keys lookup
+    
+    # Check expiration of regular key
     c.execute("SELECT expires_at FROM access_keys WHERE username=? AND is_active=1", (username,))
     row = c.fetchone()
     if row is None:
@@ -122,23 +133,30 @@ def check_subscription(username: str) -> bool:
     conn.close()
     return True
 
-def get_user_settings(username: str) -> dict:
+def get_user_settings(user_id: int) -> dict:
+    """
+    Retrieve user settings based on numeric user_id.
+    Returns empty dict if user hasn't activated a key yet.
+    """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT * FROM user_settings WHERE username=?", (username,))
+    c.execute("SELECT * FROM user_settings WHERE user_id=?", (user_id,))
     row = c.fetchone()
     if row is None:
-        # Возвращаем пустой словарь если пользователь не активировал ключ
+        # Return empty dict if user hasn't activated a key
         conn.close()
         return {}
     columns = [desc[0] for desc in c.description]
     conn.close()
     return dict(zip(columns, row))
 
-def update_user_setting(username: str, field: str, value):
+def update_user_setting(user_id: int, field: str, value):
+    """
+    Update a specific user setting based on numeric user_id.
+    """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute(f"UPDATE user_settings SET {field}=? WHERE username=?", (value, username))
+    c.execute(f"UPDATE user_settings SET {field}=? WHERE user_id=?", (value, user_id))
     conn.commit()
     conn.close()
 
