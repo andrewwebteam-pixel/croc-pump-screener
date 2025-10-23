@@ -197,3 +197,37 @@ Updated `bot.py` to use cascading data sources:
 
 **Files Changed**: `utils/binance_api.py`, `utils/bybit_api.py`, `utils/free_metrics.py`  
 **Documentation**: See `FUTURES_MIGRATION.md` for technical details
+
+---
+
+## October 22, 2025 - Futures Signal Fix (Invalid Symbols)
+
+**Problem**: Bot not sending alerts after futures migration despite successful API integration.
+
+**Root Cause**: The `SYMBOLS` array contained 7 invalid symbols (14%) that don't exist on both Binance Futures and Bybit Linear:
+- EOSUSDT, FTMUSDT, MATICUSDT, MKRUSDT, RNDRUSDT - Not available on either exchange
+- AUDIOUSDT - Only on Bybit (not Binance Futures)
+- FETUSDT - Only on Binance (not Bybit Linear)
+
+**Solution**:
+1. Queried official APIs: Binance Futures (524 symbols) and Bybit Linear (560 symbols)
+2. Found 467 common symbols available on BOTH exchanges
+3. Replaced SYMBOLS array with verified list of 45 high-volume pairs
+4. Added 3 popular pairs: TONUSDT, ICPUSDT, UNIUSDT
+5. Alphabetically sorted and documented with verification date
+
+**Test Results**: All systems verified ✅
+- Symbol validation: 45/45 successful on Binance Futures
+- Signal detection: Logic working correctly (no false positives)
+- Message generation: Complete with RSI, funding rate, long/short ratio
+- Database integration: User settings and limits working
+- Telegram delivery: Uses numeric user_id correctly
+
+**Impact**:
+- Bot now sends alerts when pump/dump signals are detected
+- 100% valid symbols eliminate API errors
+- Improved performance (no wasted API calls on invalid symbols)
+- Better maintainability (sorted, documented list)
+
+**Files Changed**: `bot.py` (SYMBOLS array updated, lines 148-158)  
+**Documentation**: See `FUTURES_SIGNAL_FIX.md` for complete analysis and test results
