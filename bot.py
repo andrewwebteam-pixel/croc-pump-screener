@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sqlite3
+import datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
@@ -373,13 +374,33 @@ async def handle_menu(message: Message) -> None:
     if text == "🎟️ My Tier":
         settings = get_user_settings(user_id)
         if settings:
+            # Retrieve activation and expiration dates from the access_keys table
+            conn = sqlite3.connect("keys.db")
+            c = conn.cursor()
+            c.execute(
+                "SELECT activated_at, expires_at FROM access_keys WHERE user_id=? AND is_active=1",
+                (user_id,),
+            )
+            dates = c.fetchone()
+            conn.close()
+            if dates:
+                activated_at_str, expires_at_str = dates
+                # Convert datetime strings to date only (YYYY-MM-DD)
+                activated_date = activated_at_str.split(" ")[0]
+                expires_date = expires_at_str.split(" ")[0]
+            else:
+                activated_date = "N/A"
+                expires_date = "N/A"
             await message.answer(
                 f"Your subscription details:\n"
                 f"- Username: {settings.get('username', 'N/A')}\n"
+                f"📅 *Activated on:* {activated_date}\n"
+                f"⏳ *Expires on:* {expires_date}\n"
                 f"- Timeframe: {settings.get('timeframe', '15m')}\n"
                 f"- Threshold: {settings.get('percent_change', 1.0)}%\n"
                 f"- Signals/day: {settings.get('signals_per_day', 5)}",
                 reply_markup=main_menu_kb,
+                parse_mode="Markdown",
             )
         else:
             await message.answer("No subscription found.", reply_markup=main_menu_kb)
