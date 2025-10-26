@@ -9,6 +9,7 @@ import aiohttp
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.exceptions import TelegramBadRequest
 
 from config import PROXY_URL, TELEGRAM_TOKEN
 from database import (
@@ -661,9 +662,21 @@ async def process_exchange(
                 open_interest=open_interest_val,
                 orderbook_ratio=orderbook_ratio_val,
             )
-            await bot.send_message(chat_id=user_id, text=message_text, parse_mode="Markdown")
-            signals_sent += 1
-            update_user_setting(user_id, "signals_sent_today", signals_sent)
+            try:
+                await bot.send_message(
+                    chat_id=user_id, text=message_text, parse_mode="Markdown"
+                )
+                signals_sent += 1
+                update_user_setting(
+                    user_id, "signals_sent_today", signals_sent)
+            except TelegramBadRequest as exc:
+                if "chat not found" in str(exc):
+                    logging.warning(
+                        f"Chat {user_id} not found. Skipping user.")
+                    return
+                else:
+                    logging.error(f"Error sending message to {user_id}: {exc}")
+                    return
         elif dump_on and price_change <= -threshold:
             message_text = format_signal(
                 symbol=symbol,
@@ -679,9 +692,21 @@ async def process_exchange(
                 open_interest=open_interest_val,
                 orderbook_ratio=orderbook_ratio_val,
             )
-            await bot.send_message(chat_id=user_id, text=message_text, parse_mode="Markdown")
-            signals_sent += 1
-            update_user_setting(user_id, "signals_sent_today", signals_sent)
+            try:
+                await bot.send_message(
+                    chat_id=user_id, text=message_text, parse_mode="Markdown"
+                )
+                signals_sent += 1
+                update_user_setting(
+                    user_id, "signals_sent_today", signals_sent)
+            except TelegramBadRequest as exc:
+                if "chat not found" in str(exc):
+                    logging.warning(
+                        f"Chat {user_id} not found. Skipping user.")
+                    return
+            else:
+                logging.error(f"Error sending message to {user_id}: {exc}")
+                return
 
 
 async def check_signals() -> None:
