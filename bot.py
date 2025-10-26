@@ -1,62 +1,59 @@
 import asyncio
+import datetime
 import logging
 import sqlite3
-import datetime
-import aiohttp
 import time
+from typing import Callable, Optional
 
+import aiohttp
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from config import TELEGRAM_TOKEN
+from config import PROXY_URL, TELEGRAM_TOKEN
 from database import (
-    init_db,
     activate_key,
     check_subscription,
-    update_user_setting,
     get_user_settings,
+    init_db,
+    update_user_setting,
 )
-from utils.coinglass_api import (
-    get_rsi,
-    get_funding_rate,
-    get_long_short_ratio,
-)
+from utils.binance_api import get_price_change as binance_price_change
+from utils.bybit_api import get_price_change as bybit_price_change
+from utils.coinglass_api import get_funding_rate, get_long_short_ratio, get_rsi
 from utils.free_metrics import (
     get_funding_rate_free,
     get_long_short_ratio_free,
     get_rsi_from_exchange,
 )
-from utils.binance_api import get_price_change as binance_price_change
-from utils.bybit_api import get_price_change as bybit_price_change
 from utils.formatters import format_signal
+from utils.market_metrics import (
+    get_open_interest_binance,
+    get_open_interest_bybit,
+    get_orderbook_ratio_binance,
+    get_orderbook_ratio_bybit,
+)
 
-from config import PROXY_URL
-
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Logging configuration
-# Set up basic logging to file with timestamp and level information.
+
 logging.basicConfig(
     filename="pumpscreener.log",
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Bot and dispatcher setup
-# Create a bot instance with the provided token and a dispatcher for handling
-# incoming messages.
+
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# Initialize the local SQLite database on import. This ensures tables are
-# created before the bot starts handling requests.
-init_db()
+init_db()  # Ensure the database is initialized on module import
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Keyboard definitions
 
-# Main menu keyboard
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -72,7 +69,6 @@ main_menu_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Pump alerts configuration keyboard
 pump_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -85,7 +81,6 @@ pump_menu_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Dump alerts configuration keyboard (mirrors pump menu)
 dump_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -98,7 +93,6 @@ dump_menu_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# General settings keyboard
 settings_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="💡 Type Alerts")],
@@ -112,7 +106,6 @@ settings_menu_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Type of alerts configuration keyboard
 type_alerts_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -124,14 +117,22 @@ type_alerts_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Tier menu keyboard (currently just a back button)
 tier_menu_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="🔙 Back")]],
     resize_keyboard=True,
 )
 
-# Timeframe selection keyboard
-timeframe_options = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1M"]
+timeframe_options = [
+    "1m",
+    "5m",
+    "15m",
+    "30m",
+    "1h",
+    "4h",
+    "1d",
+    "1w",
+    "1M",
+]
 timeframe_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=opt) for opt in timeframe_options[:5]],
@@ -141,9 +142,19 @@ timeframe_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Price change threshold keyboard
-price_options = ["0.1%", "0.2%", "0.3%", "0.4%",
-                 "0.5%", "1%", "2%", "5%", "10%", "20%", "50%"]
+price_options = [
+    "0.1%",
+    "0.2%",
+    "0.3%",
+    "0.4%",
+    "0.5%",
+    "1%",
+    "2%",
+    "5%",
+    "10%",
+    "20%",
+    "50%",
+]
 price_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=opt) for opt in price_options[:5]],
@@ -153,7 +164,6 @@ price_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# Signals per day selection keyboard
 signals_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=str(i)) for i in range(1, 6)],
@@ -165,92 +175,148 @@ signals_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Global state and constants
 
-# In-memory state per user to track menu navigation and pending actions.
 user_states: dict[int, dict] = {}
 
-# List of symbols traded on both Binance and Bybit with sufficient volume.
-# Verified high-volume USDT-margined perpetual futures pairs on both exchanges.
 SYMBOLS = [
-    "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "APTUSDT", "ARBUSDT",
-    "ATOMUSDT", "AVAXUSDT", "BANDUSDT", "BCHUSDT", "BNBUSDT", "BTCUSDT",
-    "COMPUSDT", "CRVUSDT", "DOGEUSDT", "DOTUSDT", "DYDXUSDT", "EGLDUSDT",
-    "ETCUSDT", "ETHUSDT", "FILUSDT", "GALAUSDT", "GMTUSDT", "GRTUSDT",
-    "HBARUSDT", "ICPUSDT", "INJUSDT", "KAVAUSDT", "LDOUSDT", "LINKUSDT",
-    "LTCUSDT", "MANAUSDT", "NEARUSDT", "OPUSDT", "SANDUSDT", "SNXUSDT",
-    "SOLUSDT", "SUIUSDT", "TIAUSDT", "TONUSDT", "TRXUSDT", "UNIUSDT",
-    "XLMUSDT", "XRPUSDT", "ZILUSDT",
+    "AAVEUSDT",
+    "ADAUSDT",
+    "ALGOUSDT",
+    "APEUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "ATOMUSDT",
+    "AVAXUSDT",
+    "BANDUSDT",
+    "BCHUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "COMPUSDT",
+    "CRVUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "DYDXUSDT",
+    "EGLDUSDT",
+    "ETCUSDT",
+    "ETHUSDT",
+    "FILUSDT",
+    "GALAUSDT",
+    "GMTUSDT",
+    "GRTUSDT",
+    "HBARUSDT",
+    "ICPUSDT",
+    "INJUSDT",
+    "KAVAUSDT",
+    "LDOUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "MANAUSDT",
+    "NEARUSDT",
+    "OPUSDT",
+    "SANDUSDT",
+    "SNXUSDT",
+    "SOLUSDT",
+    "SUIUSDT",
+    "TIAUSDT",
+    "TONUSDT",
+    "TRXUSDT",
+    "UNIUSDT",
+    "XLMUSDT",
+    "XRPUSDT",
+    "ZILUSDT",
 ]
 
-# -----------------------------------------------------------------------------
-# Command handlers
+TOP_SYMBOLS_LAST_UPDATE: float = 0.0
 
-# Время последнего обновления списка SYMBOLS (в секундах с момента запуска)
-TOP_SYMBOLS_LAST_UPDATE = 0
-
-# Получить топ N фьючерсных пар Binance по обороту за 24 часа
+# ----------------------------------------------------------------------------
+# Market data helpers
 
 
-async def fetch_top_binance_symbols(limit=30):
+async def fetch_top_binance_symbols(limit: int = 30) -> list[str]:
+    """
+    Return the top Binance USDT-margined futures pairs by 24h volume.
+
+    Args:
+        limit: Maximum number of symbols to return.
+
+    Returns:
+        A list of symbol strings sorted by descending 24h quote volume.
+    """
     url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, proxy=PROXY_URL, timeout=10) as resp:
             data = await resp.json()
-    # оставляем только USDT‑маржинальные контракты
     usdt_pairs = [item for item in data if item["symbol"].endswith("USDT")]
-    # сортируем по обороту в котируемой валюте (quoteVolume) в порядке убывания:contentReference[oaicite:0]{index=0}
-    sorted_pairs = sorted(usdt_pairs, key=lambda x: float(
-        x["quoteVolume"]), reverse=True)
+    sorted_pairs = sorted(
+        usdt_pairs,
+        key=lambda item: float(item["quoteVolume"]),
+        reverse=True,
+    )
     return [item["symbol"] for item in sorted_pairs[:limit]]
 
-# Получить топ N линейных контрактов Bybit по обороту за 24 часа
 
+async def fetch_top_bybit_symbols(limit: int = 30) -> list[str]:
+    """
+    Return the top Bybit USDT-margined linear contracts by 24h volume.
 
-async def fetch_top_bybit_symbols(limit=30):
+    Args:
+        limit: Maximum number of symbols to return.
+
+    Returns:
+        A list of symbol strings sorted by descending 24h turnover.
+    """
     url = "https://api.bybit.com/v5/market/tickers"
     params = {"category": "linear"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, proxy=PROXY_URL, timeout=10) as resp:
             data = await resp.json()
-    tickers = data["result"]["list"]
-    # оставляем только USDT‑контракты
+    tickers = data.get("result", {}).get("list", [])
     usdt_pairs = [item for item in tickers if item["symbol"].endswith("USDT")]
-    # сортируем по обороту (turnover24h), который тоже указан в ответе:contentReference[oaicite:1]{index=1}
-    sorted_pairs = sorted(usdt_pairs, key=lambda item: float(
-        item["turnover24h"]), reverse=True)
+    sorted_pairs = sorted(
+        usdt_pairs,
+        key=lambda item: float(item["turnover24h"]),
+        reverse=True,
+    )
     return [item["symbol"] for item in sorted_pairs[:limit]]
 
-# Обновить глобальный список SYMBOLS не чаще одного раза в час
 
+async def update_symbol_list() -> None:
+    """
+    Update the global SYMBOLS list with top pairs from Binance and Bybit.
 
-async def update_symbol_list():
+    This function refreshes the SYMBOLS list at most once per hour. It
+    combines the top symbols from both exchanges, removes duplicates, and
+    preserves order. If an error occurs, the existing list remains unchanged.
+    """
     global SYMBOLS, TOP_SYMBOLS_LAST_UPDATE
-    # если обновление было менее часа назад, ничего не делаем
     if time.time() - TOP_SYMBOLS_LAST_UPDATE < 3600:
         return
     try:
         binance_top = await fetch_top_binance_symbols()
         bybit_top = await fetch_top_bybit_symbols()
-        # объединяем два списка и убираем дубликаты, сохраняя порядок
-        unique_symbols = []
+        unique_symbols: list[str] = []
         for sym in binance_top + bybit_top:
             if sym not in unique_symbols:
                 unique_symbols.append(sym)
         SYMBOLS = unique_symbols
         TOP_SYMBOLS_LAST_UPDATE = time.time()
-        logging.info(f"Updated SYMBOLS: {SYMBOLS}")
-    except Exception as e:
-        logging.error(f"Failed to update top symbols: {e}")
+        logging.info("Updated SYMBOLS: %s", SYMBOLS)
+    except Exception as exc:
+        logging.error("Failed to update top symbols: %s", exc)
+
+# ----------------------------------------------------------------------------
+# Command handlers
 
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message) -> None:
-    """Handle the /start command.
+    """
+    Handle the /start command.
 
-    Prompts the user to activate their subscription if they haven't yet, or
-    presents the main menu if an active subscription is detected.
+    If the user has an active subscription, the main menu is displayed. Otherwise
+    the user is prompted to enter a license key.
     """
     user_id = message.from_user.id
     username = message.from_user.username or str(user_id)
@@ -260,7 +326,6 @@ async def cmd_start(message: Message) -> None:
             reply_markup=main_menu_kb,
         )
     else:
-        # Mark the user as awaiting a license key in the state machine
         user_states[user_id] = {"awaiting_key": True}
         await message.answer(
             "Hello! 👋 Please enter your license key to activate your subscription."
@@ -269,7 +334,9 @@ async def cmd_start(message: Message) -> None:
 
 @dp.message(Command("activate"))
 async def cmd_activate(message: Message) -> None:
-    """Handle the /activate command to manually activate a license key."""
+    """
+    Handle the /activate command to manually activate a license key.
+    """
     parts = message.text.strip().split()
     if len(parts) != 2:
         await message.answer("Usage: /activate <key> 🗝️")
@@ -290,7 +357,9 @@ async def cmd_activate(message: Message) -> None:
 
 @dp.message(Command("help"))
 async def cmd_help(message: Message) -> None:
-    """Display a help message listing available commands."""
+    """
+    Display a help message listing available commands.
+    """
     await message.answer(
         "Here are the available commands 📋:\n"
         "/start — Start the bot and get activation instructions.\n"
@@ -298,31 +367,28 @@ async def cmd_help(message: Message) -> None:
         "/help — Show this help message."
     )
 
-
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Generic message handler
+
 
 @dp.message()
 async def handle_menu(message: Message) -> None:
-    """Process all text messages not matched by explicit commands.
+    """
+    Process all non-command text messages.
 
-    This handler manages license key activation flow, menu navigation, and
-    user configuration input for timeframes, thresholds, and signal limits.
+    This handler manages license key activation, menu navigation, and user
+    preferences such as timeframe, price change threshold, and signals per day.
     """
     user_id = message.from_user.id
     username = message.from_user.username or str(user_id)
     text = message.text.strip()
     state = user_states.get(user_id, {})
-
-    # ---------------------------------------------------------------------
     # License key activation flow
     if state.get("awaiting_key"):
         if activate_key(text, username, user_id):
-            # Key accepted; clear waiting state and show main menu
             user_states.pop(user_id, None)
             await message.answer(
-                "Your key has been activated successfully! ✅\n"
-                "Use the menu below to configure your alerts.",
+                "Your key has been activated successfully! ✅\nUse the menu below to configure your alerts.",
                 reply_markup=main_menu_kb,
             )
         else:
@@ -330,8 +396,6 @@ async def handle_menu(message: Message) -> None:
                 "Invalid key or this key has already been used by another user. ❌"
             )
         return
-
-    # ---------------------------------------------------------------------
     # Parameter selection within pump/dump menus
     if "setting" in state:
         setting = state["setting"]
@@ -342,7 +406,6 @@ async def handle_menu(message: Message) -> None:
             await message.answer("Timeframe updated.", reply_markup=kb)
             return
         if setting == "percent_change" and text in price_options:
-            # Remove the percent sign and convert to float
             value = float(text.strip("%"))
             update_user_setting(user_id, "percent_change", value)
             state.pop("setting", None)
@@ -356,13 +419,10 @@ async def handle_menu(message: Message) -> None:
             await message.answer("Signals per day updated.", reply_markup=kb)
             return
         if text == "🔙 Back":
-            # Cancel the current setting and return to the appropriate submenu
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Returning to menu.", reply_markup=kb)
             return
-
-    # ---------------------------------------------------------------------
     # Main menu navigation
     if text == "📈 Pump Alerts":
         user_states[user_id] = {"menu": "pump"}
@@ -394,7 +454,6 @@ async def handle_menu(message: Message) -> None:
     if text == "🎟️ My Tier":
         settings = get_user_settings(user_id)
         if settings:
-            # Retrieve activation and expiration dates from the access_keys table
             conn = sqlite3.connect("keys.db")
             c = conn.cursor()
             c.execute(
@@ -405,7 +464,6 @@ async def handle_menu(message: Message) -> None:
             conn.close()
             if dates:
                 activated_at_str, expires_at_str = dates
-                # Convert datetime strings to date only (YYYY-MM-DD)
                 activated_date = activated_at_str.split(" ")[0]
                 expires_date = expires_at_str.split(" ")[0]
             else:
@@ -425,59 +483,44 @@ async def handle_menu(message: Message) -> None:
             await message.answer("No subscription found.", reply_markup=main_menu_kb)
         return
     if text == "🔓 Logout":
-        # Deactivate the user's key and remove their settings unless they are an admin.
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
-        # Retrieve username and admin flag for this user_id
         c.execute(
-            "SELECT username, is_admin FROM user_settings WHERE user_id=?", (user_id,))
+            "SELECT username, is_admin FROM user_settings WHERE user_id=?",
+            (user_id,),
+        )
         row = c.fetchone()
         if row:
             username_db, is_admin = row
-            # Deactivate the key for non-admin users
             if not is_admin:
                 c.execute(
                     "UPDATE access_keys SET is_active=0, user_id=NULL WHERE username=?",
                     (username_db,),
                 )
-            # Remove user settings
             c.execute("DELETE FROM user_settings WHERE user_id=?", (user_id,))
         conn.commit()
         conn.close()
-        # Clear in-memory state
         user_states.pop(user_id, None)
         await message.answer(
             "You have been logged out. Send /start to log back in.",
             reply_markup=main_menu_kb,
         )
         return
-
-    # ---------------------------------------------------------------------
     # Pump/Dump submenu options
     if text == "⏱️ Timeframe":
-        # Request timeframe selection
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "timeframe"}
-        await message.answer(
-            "Select your preferred timeframe:",
-            reply_markup=timeframe_kb,
-        )
+        await message.answer("Select your preferred timeframe:", reply_markup=timeframe_kb)
         return
     if text == "📊 Price change":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "percent_change"}
-        await message.answer(
-            "Select price change threshold:",
-            reply_markup=price_kb,
-        )
+        await message.answer("Select price change threshold:", reply_markup=price_kb)
         return
     if text == "📡 Signals per day":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "signals_per_day"}
-        await message.answer(
-            "Select number of signals per day:",
-            reply_markup=signals_kb,
-        )
+        await message.answer("Select number of signals per day:", reply_markup=signals_kb)
         return
     if text == "Pump ON/OFF":
         settings = get_user_settings(user_id)
@@ -527,20 +570,18 @@ async def handle_menu(message: Message) -> None:
     if text == "🔙 Back":
         current_menu = user_states.get(user_id, {}).get("menu")
         if current_menu == "type_alerts":
-            # Back from type alerts to settings
             user_states[user_id] = {"menu": "settings"}
             await message.answer("Settings menu:", reply_markup=settings_menu_kb)
         elif current_menu in ("pump", "dump", "tier"):
-            # Back from specific menus to main
             user_states.pop(user_id, None)
             await message.answer("Main menu:", reply_markup=main_menu_kb)
         else:
             await message.answer("Main menu:", reply_markup=main_menu_kb)
         return
 
-
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Signal processing helpers
+
 
 async def process_exchange(
     exchange_name: str,
@@ -551,52 +592,29 @@ async def process_exchange(
     dump_on: bool,
     signals_sent: int,
     limit: int,
-    price_change_func,
+    price_change_func: Callable[[str, str], asyncio.Future],
 ) -> None:
-    """Process pump/dump signals for a specific exchange and send alerts.
+    """
+    Process pump/dump signals for a specific exchange and send alerts.
 
-    Iterates over a list of trading symbols, retrieves price and volume change
-    data, and checks whether the changes exceed user-defined thresholds. If a
-    pump or dump is detected, it formats and sends a signal message via the
-    bot. RSI, funding rate, and long/short ratios are fetched with fallback
-    mechanisms to alternate data sources when needed.
-
-    Parameters
-    ----------
-    exchange_name : str
-        Name of the exchange (e.g., "Binance", "Bybit").
-    user_id : int
-        Telegram user ID to send messages to.
-    timeframe : str
-        Candle timeframe (e.g., "15m", "1h").
-    threshold : float
-        Percent change threshold to trigger alerts.
-    pump_on : bool
-        Whether pump alerts are enabled.
-    dump_on : bool
-        Whether dump alerts are enabled.
-    signals_sent : int
-        Number of signals already sent today for this user.
-    limit : int
-        Maximum signals allowed per day for this user.
-    price_change_func : Callable[[str, str], Awaitable[dict]]
-        Function to fetch price and volume change data for a given symbol
-        and timeframe.
+    Iterates over the SYMBOLS list, retrieves price and volume change data, and
+    checks whether the changes exceed user-defined thresholds. If a pump or
+    dump condition is met, formats and sends a signal message via the bot.
+    Additional indicators (RSI, funding rate, long/short ratio) are fetched
+    with fallback strategies.
     """
     for symbol in SYMBOLS:
         if signals_sent >= limit:
             break
-        # Attempt to fetch price change data; on failure continue to next symbol
         try:
             data = await price_change_func(symbol, timeframe)
-        except Exception as e:
-            logging.error(
-                f"Error fetching data for {symbol} on {exchange_name}: {e}")
+        except Exception as exc:
+            logging.error("Error fetching data for %s on %s: %s",
+                          symbol, exchange_name, exc)
             continue
-        price_change = data.get("price_change", 0)
-        volume_change = data.get("volume_change", 0)
-        price_now = data.get("price_now", 0)
-        # Fetch additional metrics with graceful fallback
+        price_change = data.get("price_change", 0.0)
+        volume_change = data.get("volume_change", 0.0)
+        price_now = data.get("price_now", 0.0)
         try:
             rsi_value = await get_rsi(symbol, timeframe)
         except Exception:
@@ -615,7 +633,6 @@ async def process_exchange(
             long_short_ratio = None
         if long_short_ratio is None:
             long_short_ratio = await get_long_short_ratio_free(symbol, "1h")
-        # Evaluate pump/dump conditions and send alerts
         if pump_on and price_change >= threshold:
             message_text = format_signal(
                 symbol=symbol,
@@ -628,6 +645,8 @@ async def process_exchange(
                 rsi=rsi_value,
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
+                open_interest=open_interest_val,
+                orderbook_ratio=orderbook_ratio_val,
             )
             await bot.send_message(chat_id=user_id, text=message_text, parse_mode="Markdown")
             signals_sent += 1
@@ -644,6 +663,8 @@ async def process_exchange(
                 rsi=rsi_value,
                 funding=funding_rate,
                 long_short_ratio=long_short_ratio,
+                open_interest=open_interest_val,
+                orderbook_ratio=orderbook_ratio_val,
             )
             await bot.send_message(chat_id=user_id, text=message_text, parse_mode="Markdown")
             signals_sent += 1
@@ -651,25 +672,24 @@ async def process_exchange(
 
 
 async def check_signals() -> None:
-    """Background task to periodically evaluate signals for all users.
+    """
+    Periodically evaluate signals for all users.
 
-    Every five minutes, this coroutine iterates over all users with active
-    subscriptions and evaluates pump/dump signals on the configured exchanges.
-    It respects per-user limits on the number of signals sent per day.
+    Runs indefinitely in the background. Every five minutes, updates the symbol
+    list (at most once per hour), iterates over users with active
+    subscriptions, and triggers signal checks on Binance and Bybit according
+    to each user's settings and daily limits.
     """
     while True:
         await update_symbol_list()
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
-        # Get all users that have entries in user_settings
         c.execute("SELECT username, user_id FROM user_settings")
-        users = [(row[0], row[1]) for row in c.fetchall()]
+        users = c.fetchall()
         conn.close()
         for username_db, user_id_db in users:
-            # Skip invalid user_ids (legacy data from before migration)
             if user_id_db is None or user_id_db == 0:
                 continue
-            # Skip users without active subscription
             if not check_subscription(user_id_db):
                 continue
             settings = get_user_settings(user_id_db)
@@ -677,7 +697,6 @@ async def check_signals() -> None:
                 continue
             signals_sent = settings.get("signals_sent_today", 0)
             limit = settings.get("signals_per_day", 5)
-            # Skip if signals are disabled or the daily limit has been reached
             if settings.get("signals_enabled", 1) == 0 or signals_sent >= limit:
                 continue
             timeframe = settings.get("timeframe", "15m")
@@ -686,7 +705,6 @@ async def check_signals() -> None:
             dump_on = bool(settings.get("type_dump", 1))
             binance_on = bool(settings.get("exchange_binance", 1))
             bybit_on = bool(settings.get("exchange_bybit", 1))
-            # Process signals on Binance
             if binance_on:
                 await process_exchange(
                     "Binance",
@@ -699,7 +717,6 @@ async def check_signals() -> None:
                     limit,
                     binance_price_change,
                 )
-            # Process signals on Bybit
             if bybit_on:
                 await process_exchange(
                     "Bybit",
@@ -712,24 +729,21 @@ async def check_signals() -> None:
                     limit,
                     bybit_price_change,
                 )
-        # Sleep for 5 minutes before next check
         await asyncio.sleep(300)
 
+# ----------------------------------------------------------------------------
+# Main entry point
 
-# -----------------------------------------------------------------------------
-# Main entrypoint
 
 async def main() -> None:
-    """Entrypoint for running the bot.
+    """
+    Entrypoint for running the bot.
 
     Spawns the background task for periodic signal checks and starts polling
     Telegram for new messages and commands.
     """
-    # Start background task for signal checks
     asyncio.create_task(check_signals())
-    # Start polling for bot messages and commands
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
