@@ -466,6 +466,7 @@ async def handle_menu(message: Message) -> None:
     if text == "🎟️ My Tier":
         settings = get_user_settings(user_id)
         if settings:
+            # Retrieve activation and expiration dates from the access_keys table
             conn = sqlite3.connect("keys.db")
             c = conn.cursor()
             c.execute(
@@ -481,23 +482,40 @@ async def handle_menu(message: Message) -> None:
             else:
                 activated_date = "N/A"
                 expires_date = "N/A"
-            await message.answer(
-                f"Your subscription details:\n"
+            # Extract settings for pump/dump alerts, exchanges, signals and other prefs
+            pump_status = "ON" if settings.get("type_pump", 1) else "OFF"
+            dump_status = "ON" if settings.get("type_dump", 1) else "OFF"
+            binance_status = "ON" if settings.get(
+                "exchange_binance", 1) else "OFF"
+            bybit_status = "ON" if settings.get("exchange_bybit", 1) else "OFF"
+            signals_status = "ON" if settings.get(
+                "signals_enabled", 1) else "OFF"
+            timeframe = settings.get("timeframe", "15m")
+            threshold = settings.get("percent_change", 1.0)
+            signals_day = settings.get("signals_per_day", 5)
+            # Build detailed tier message
+            tier_message = (
+                "Your subscription details:\n"
                 f"👤 Username: {settings.get('username', 'N/A')}\n"
                 f"📅 Activated on: {activated_date}\n"
                 f"⏳ Expires on: {expires_date}\n"
-                f"\n"
-                f"📉 Dump Alerts:\n"
+                "\n"
+                "📈 Pump Alerts:\n"
+                f"   🔔 Status: {pump_status}\n"
+                f"   ⏱️ Timeframe: {timeframe}\n"
+                f"   🎯 Threshold: {threshold}%\n"
+                "\n"
+                "📉 Dump Alerts:\n"
                 f"   🔔 Status: {dump_status}\n"
                 f"   ⏱️ Timeframe: {timeframe}\n"
                 f"   🎯 Threshold: {threshold}%\n"
-                f"\n"
+                "\n"
                 f"🔔 Signals/day: {signals_day}\n"
                 f"🟡 Binance: {binance_status}\n"
                 f"🔵 Bybit: {bybit_status}\n"
-                f"📢 Signals: {signals_status}",
-                reply_markup=main_menu_kb,
+                f"📢 Signals: {signals_status}"
             )
+            await message.answer(tier_message, reply_markup=main_menu_kb)
         else:
             await message.answer("No subscription found.", reply_markup=main_menu_kb)
         return
@@ -809,17 +827,12 @@ async def check_signals() -> None:
             # Skip if signals are disabled or the daily limit has been reached
             if settings.get("signals_enabled", 1) == 0 or signals_sent >= limit:
                 continue
-            pump_status = "ON" if settings.get("type_pump", 1) else "OFF"
-            dump_status = "ON" if settings.get("type_dump", 1) else "OFF"
-            binance_status = "ON" if settings.get(
-                "exchange_binance", 1) else "OFF"
-            bybit_status = "ON" if settings.get("exchange_bybit", 1) else "OFF"
-            signals_status = "ON" if settings.get(
-                "signals_enabled", 1) else "OFF"
             timeframe = settings.get("timeframe", "15m")
             threshold = settings.get("percent_change", 1.0)
-            signals_day = settings.get("signals_per_day", 5)
-
+            pump_on = bool(settings.get("type_pump", 1))
+            dump_on = bool(settings.get("type_dump", 1))
+            binance_on = bool(settings.get("exchange_binance", 1))
+            bybit_on = bool(settings.get("exchange_bybit", 1))
             if binance_on:
                 await process_exchange(
                     "Binance",
