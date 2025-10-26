@@ -33,7 +33,6 @@ from utils.market_metrics import (
     get_orderbook_ratio_binance,
     get_orderbook_ratio_bybit,
 )
-
 # ----------------------------------------------------------------------------
 # Logging configuration
 
@@ -633,6 +632,20 @@ async def process_exchange(
             long_short_ratio = None
         if long_short_ratio is None:
             long_short_ratio = await get_long_short_ratio_free(symbol, "1h")
+        try:
+            if exchange_name == "Binance":
+                open_interest_val = await get_open_interest_binance(symbol)
+                orderbook_ratio_val = await get_orderbook_ratio_binance(symbol)
+            else:
+                open_interest_val = await get_open_interest_bybit(symbol)
+                orderbook_ratio_val = await get_orderbook_ratio_bybit(symbol)
+        except Exception as e:
+            logging.error(
+                f"Error fetching additional metrics for {symbol} on {exchange_name}: {e}"
+            )
+            open_interest_val = None
+            orderbook_ratio_val = None
+
         if pump_on and price_change >= threshold:
             message_text = format_signal(
                 symbol=symbol,
