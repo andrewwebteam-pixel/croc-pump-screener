@@ -1,4 +1,3 @@
-# utils/market_metrics.py
 import aiohttp
 from config import PROXY_URL
 
