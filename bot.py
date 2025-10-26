@@ -809,12 +809,17 @@ async def check_signals() -> None:
             # Skip if signals are disabled or the daily limit has been reached
             if settings.get("signals_enabled", 1) == 0 or signals_sent >= limit:
                 continue
+            pump_status = "ON" if settings.get("type_pump", 1) else "OFF"
+            dump_status = "ON" if settings.get("type_dump", 1) else "OFF"
+            binance_status = "ON" if settings.get(
+                "exchange_binance", 1) else "OFF"
+            bybit_status = "ON" if settings.get("exchange_bybit", 1) else "OFF"
+            signals_status = "ON" if settings.get(
+                "signals_enabled", 1) else "OFF"
             timeframe = settings.get("timeframe", "15m")
             threshold = settings.get("percent_change", 1.0)
-            pump_on = bool(settings.get("type_pump", 1))
-            dump_on = bool(settings.get("type_dump", 1))
-            binance_on = bool(settings.get("exchange_binance", 1))
-            bybit_on = bool(settings.get("exchange_bybit", 1))
+            signals_day = settings.get("signals_per_day", 5)
+
             if binance_on:
                 await process_exchange(
                     "Binance",
