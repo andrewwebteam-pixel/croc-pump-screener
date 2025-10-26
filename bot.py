@@ -2,6 +2,8 @@ import asyncio
 import logging
 import sqlite3
 import datetime
+import aiohttp
+import time
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
@@ -28,6 +30,8 @@ from utils.free_metrics import (
 from utils.binance_api import get_price_change as binance_price_change
 from utils.bybit_api import get_price_change as bybit_price_change
 from utils.formatters import format_signal
+
+from config import PROXY_URL
 
 # -----------------------------------------------------------------------------
 # Logging configuration
@@ -180,6 +184,63 @@ SYMBOLS = [
 
 # -----------------------------------------------------------------------------
 # Command handlers
+
+# Время последнего обновления списка SYMBOLS (в секундах с момента запуска)
+TOP_SYMBOLS_LAST_UPDATE = 0
+
+# Получить топ N фьючерсных пар Binance по обороту за 24 часа
+
+
+async def fetch_top_binance_symbols(limit=30):
+    url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, proxy=PROXY_URL, timeout=10) as resp:
+            data = await resp.json()
+    # оставляем только USDT‑маржинальные контракты
+    usdt_pairs = [item for item in data if item["symbol"].endswith("USDT")]
+    # сортируем по обороту в котируемой валюте (quoteVolume) в порядке убывания:contentReference[oaicite:0]{index=0}
+    sorted_pairs = sorted(usdt_pairs, key=lambda x: float(
+        x["quoteVolume"]), reverse=True)
+    return [item["symbol"] for item in sorted_pairs[:limit]]
+
+# Получить топ N линейных контрактов Bybit по обороту за 24 часа
+
+
+async def fetch_top_bybit_symbols(limit=30):
+    url = "https://api.bybit.com/v5/market/tickers"
+    params = {"category": "linear"}
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, proxy=PROXY_URL, timeout=10) as resp:
+            data = await resp.json()
+    tickers = data["result"]["list"]
+    # оставляем только USDT‑контракты
+    usdt_pairs = [item for item in tickers if item["symbol"].endswith("USDT")]
+    # сортируем по обороту (turnover24h), который тоже указан в ответе:contentReference[oaicite:1]{index=1}
+    sorted_pairs = sorted(usdt_pairs, key=lambda item: float(
+        item["turnover24h"]), reverse=True)
+    return [item["symbol"] for item in sorted_pairs[:limit]]
+
+# Обновить глобальный список SYMBOLS не чаще одного раза в час
+
+
+async def update_symbol_list():
+    global SYMBOLS, TOP_SYMBOLS_LAST_UPDATE
+    # если обновление было менее часа назад, ничего не делаем
+    if time.time() - TOP_SYMBOLS_LAST_UPDATE < 3600:
+        return
+    try:
+        binance_top = await fetch_top_binance_symbols()
+        bybit_top = await fetch_top_bybit_symbols()
+        # объединяем два списка и убираем дубликаты, сохраняя порядок
+        unique_symbols = []
+        for sym in binance_top + bybit_top:
+            if sym not in unique_symbols:
+                unique_symbols.append(sym)
+        SYMBOLS = unique_symbols
+        TOP_SYMBOLS_LAST_UPDATE = time.time()
+        logging.info(f"Updated SYMBOLS: {SYMBOLS}")
+    except Exception as e:
+        logging.error(f"Failed to update top symbols: {e}")
 
 
 @dp.message(Command("start"))
@@ -595,6 +656,7 @@ async def check_signals() -> None:
     It respects per-user limits on the number of signals sent per day.
     """
     while True:
+        await update_symbol_list()
         conn = sqlite3.connect("keys.db")
         c = conn.cursor()
         # Get all users that have entries in user_settings
