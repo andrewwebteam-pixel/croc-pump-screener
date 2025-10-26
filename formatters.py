@@ -10,6 +10,8 @@ def format_signal(
     rsi: float | None = None,
     funding: float | None = None,
     long_short_ratio: tuple | None = None,
+    open_interest: float | None = None,
+    orderbook_ratio: float | None = None,
 ) -> str:
     """
     Build the text of a pump/dump signal message.
@@ -84,6 +86,10 @@ def format_signal(
     if long_short_ratio is not None:
         long_pct, short_pct = long_short_ratio
         lines.append(f"🔄 Long/Short ratio: {long_pct:.2f}% / {short_pct:.2f}%")
+    if open_interest is not None:
+        lines.append(f"💰 Open interest: {open_interest:.2f}")
+    if orderbook_ratio is not None:
+        lines.append(f"📊 Orderbook ratio (bid/ask): {orderbook_ratio:.2f}")
 
     # Referral links remain unchanged. Replace these URLs with your own
     # referral codes if desired.
