@@ -1,4 +1,5 @@
 # utils/bybit_api.py
+import time
 import aiohttp
 import asyncio
 
@@ -9,7 +10,6 @@ SEMAPHORE = asyncio.Semaphore(5)
 BASE_URL = "https://api.bybit.com/v5/market"
 
 # --- Кеш для сохранения последних результатов price_change ---
-import time
 PRICE_CACHE: dict[tuple[str, str], dict] = {}
 CACHE_TTL = 300  # время жизни кеша (5 минут)
 
@@ -20,7 +20,12 @@ INTERVAL_MAP = {
     "15m": "15",
     "30m": "30",
     "1h": "60",
+    "4h": "240",
+    "1d": "D",
+    "1w": "W",
+    "1M": "M",
 }
+
 
 async def get_klines(symbol: str, interval: str, limit: int = 2):
     interval_val = INTERVAL_MAP[interval]
@@ -36,6 +41,7 @@ async def get_klines(symbol: str, interval: str, limit: int = 2):
             async with session.get(url, params=params, proxy=PROXY_URL) as resp:
                 data = await resp.json()
                 return data["result"]["list"]
+
 
 async def get_price_change(symbol: str, interval: str):
     """
@@ -56,7 +62,8 @@ async def get_price_change(symbol: str, interval: str):
     volume_now = float(curr_kline[5])
 
     price_change = ((close_now - open_now) / open_now) * 100
-    volume_change = ((volume_now - volume_prev) / volume_prev) * 100 if volume_prev else 0.0
+    volume_change = ((volume_now - volume_prev) /
+                     volume_prev) * 100 if volume_prev else 0.0
 
     result = {
         "price_change": price_change,
