@@ -486,9 +486,16 @@ async def handle_menu(message: Message) -> None:
                 f"👤 Username: {settings.get('username', 'N/A')}\n"
                 f"📅 Activated on: {activated_date}\n"
                 f"⏳ Expires on: {expires_date}\n"
-                f"⏱️ Timeframe: {settings.get('timeframe', '15m')}\n"
-                f"🎯 Threshold: {settings.get('percent_change', 1.0)}%\n"
-                f"🔔 Signals/day: {settings.get('signals_per_day', 5)}",
+                f"\n"
+                f"📉 Dump Alerts:\n"
+                f"   🔔 Status: {dump_status}\n"
+                f"   ⏱️ Timeframe: {timeframe}\n"
+                f"   🎯 Threshold: {threshold}%\n"
+                f"\n"
+                f"🔔 Signals/day: {signals_day}\n"
+                f"🟡 Binance: {binance_status}\n"
+                f"🔵 Bybit: {bybit_status}\n"
+                f"📢 Signals: {signals_status}",
                 reply_markup=main_menu_kb,
             )
         else:
