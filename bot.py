@@ -131,21 +131,23 @@ tier_menu_kb = ReplyKeyboardMarkup(
 )
 
 # Timeframe selection keyboard
-timeframe_options = ["1m", "5m", "15m", "30m", "1h"]
+timeframe_options = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1M"]
 timeframe_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text=opt) for opt in timeframe_options],
+        [KeyboardButton(text=opt) for opt in timeframe_options[:5]],
+        [KeyboardButton(text=opt) for opt in timeframe_options[5:]],
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True,
 )
 
 # Price change threshold keyboard
-price_options = ["0.5%", "1%", "2%", "5%", "10%", "20%", "50%"]
+price_options = ["0.1%", "0.2%", "0.3%", "0.4%",
+                 "0.5%", "1%", "2%", "5%", "10%", "20%", "50%"]
 price_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text=opt) for opt in price_options[:3]],
-        [KeyboardButton(text=opt) for opt in price_options[3:]],
+        [KeyboardButton(text=opt) for opt in price_options[:5]],
+        [KeyboardButton(text=opt) for opt in price_options[5:]],
         [KeyboardButton(text="🔙 Back")],
     ],
     resize_keyboard=True,
