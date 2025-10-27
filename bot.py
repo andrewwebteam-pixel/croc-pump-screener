@@ -238,10 +238,9 @@ SYMBOLS: list[str] = [
 # Timestamp of the last symbol list update. Measured in seconds since epoch.
 TOP_SYMBOLS_LAST_UPDATE: float = 0.0
 
+
 # ---------------------------------------------------------------------------
 # Market data helpers
-
-
 async def fetch_top_binance_symbols(limit: int = 30) -> list[str]:
     """Return the top Binance USDT‑margined futures pairs by 24h volume.
 
@@ -286,7 +285,8 @@ async def fetch_top_bybit_symbols(limit: int = 30) -> list[str]:
     url = "https://api.bybit.com/v5/market/tickers"
     params = {"category": "linear"}
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params, proxy=PROXY_URL, timeout=10) as resp:
+        async with session.get(url, params=params, proxy=PROXY_URL,
+                               timeout=10) as resp:
             data = await resp.json()
     tickers = data.get("result", {}).get("list", [])
     usdt_pairs = [item for item in tickers if item["symbol"].endswith("USDT")]
@@ -323,6 +323,7 @@ async def update_symbol_list() -> None:
     except Exception as exc:
         logging.error("Failed to update top symbols: %s", exc)
 
+
 # ---------------------------------------------------------------------------
 # Command handlers
 
@@ -341,10 +342,11 @@ async def cmd_start(message: Message) -> None:
             "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
             reply_markup=main_menu_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
     else:
@@ -352,10 +354,11 @@ async def cmd_start(message: Message) -> None:
         response = await message.answer(
             "Hello! 👋 Please enter your license key to activate your subscription."
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -378,8 +381,7 @@ async def cmd_activate(message: Message) -> None:
         )
     else:
         await message.answer(
-            "Invalid key or this key has already been used by another user. ❌"
-        )
+            "Invalid key or this key has already been used by another user. ❌")
 
 
 @dp.message(Command("help"))
@@ -389,8 +391,8 @@ async def cmd_help(message: Message) -> None:
         "Here are the available commands 📋:\n"
         "/start — Start the bot and get activation instructions.\n"
         "/activate <key> — Activate your access key.\n"
-        "/help — Show this help message."
-    )
+        "/help — Show this help message.")
+
 
 # ---------------------------------------------------------------------------
 # Generic message handler
@@ -438,11 +440,13 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, text)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            response = await message.answer("Timeframe updated.".format(text), reply_markup=kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer("Timeframe updated.".format(text),
+                                            reply_markup=kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
             return
@@ -454,11 +458,13 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, value)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            response = await message.answer("Percent change updated.".format(value), reply_markup=kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer(
+                "Percent change updated.".format(value), reply_markup=kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
             return
@@ -469,11 +475,13 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, int(text))
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            response = await message.answer("Signals per day updated.".format(text), reply_markup=kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer(
+                "Signals per day updated.".format(text), reply_markup=kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
             return
@@ -487,24 +495,26 @@ async def handle_menu(message: Message) -> None:
     if text == "📈 Pump Alerts":
         user_states[user_id] = {"menu": "pump"}
         response = await message.answer(
-            "Configure your Pump Alert settings below:", reply_markup=pump_menu_kb
-        )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+            "Configure your Pump Alert settings below:",
+            reply_markup=pump_menu_kb)
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
     if text == "📉 Dump Alerts":
         user_states[user_id] = {"menu": "dump"}
         response = await message.answer(
-            "Configure your Dump Alert settings below:", reply_markup=dump_menu_kb
-        )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+            "Configure your Dump Alert settings below:",
+            reply_markup=dump_menu_kb)
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -513,10 +523,11 @@ async def handle_menu(message: Message) -> None:
             "Configure your exchange and signal preferences:",
             reply_markup=settings_menu_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -526,10 +537,11 @@ async def handle_menu(message: Message) -> None:
             "Configure which alert types you want to receive:",
             reply_markup=type_alerts_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -541,7 +553,7 @@ async def handle_menu(message: Message) -> None:
             c = conn.cursor()
             c.execute(
                 "SELECT activated_at, expires_at FROM access_keys WHERE user_id=? AND is_active=1",
-                (user_id,),
+                (user_id, ),
             )
             dates = c.fetchone()
             conn.close()
@@ -555,67 +567,63 @@ async def handle_menu(message: Message) -> None:
             # Extract settings for pump/dump alerts, exchanges, signals and other prefs
             pump_status = "ON" if settings.get("type_pump", 1) else "OFF"
             dump_status = "ON" if settings.get("type_dump", 1) else "OFF"
-            binance_status = "ON" if settings.get(
-                "exchange_binance", 1) else "OFF"
+            binance_status = "ON" if settings.get("exchange_binance",
+                                                  1) else "OFF"
             bybit_status = "ON" if settings.get("exchange_bybit", 1) else "OFF"
-            signals_status = "ON" if settings.get(
-                "signals_enabled", 1) else "OFF"
+            signals_status = "ON" if settings.get("signals_enabled",
+                                                  1) else "OFF"
             # Pump-specific settings (fallback to common settings if not found)
-            timeframe_pump = settings.get(
-                "timeframe_pump", settings.get("timeframe", "15m")
-            )
-            threshold_pump = settings.get(
-                "percent_change_pump", settings.get("percent_change", 1.0)
-            )
-            signals_day_pump = settings.get(
-                "signals_per_day_pump", settings.get("signals_per_day", 5)
-            )
+            timeframe_pump = settings.get("timeframe_pump",
+                                          settings.get("timeframe", "15m"))
+            threshold_pump = settings.get("percent_change_pump",
+                                          settings.get("percent_change", 1.0))
+            signals_day_pump = settings.get("signals_per_day_pump",
+                                            settings.get("signals_per_day", 5))
             # Dump-specific settings (fallback to common settings if not found)
-            timeframe_dump = settings.get(
-                "timeframe_dump", settings.get("timeframe", "15m")
-            )
-            threshold_dump = settings.get(
-                "percent_change_dump", settings.get("percent_change", 1.0)
-            )
-            signals_day_dump = settings.get(
-                "signals_per_day_dump", settings.get("signals_per_day", 5)
-            )
+            timeframe_dump = settings.get("timeframe_dump",
+                                          settings.get("timeframe", "15m"))
+            threshold_dump = settings.get("percent_change_dump",
+                                          settings.get("percent_change", 1.0))
+            signals_day_dump = settings.get("signals_per_day_dump",
+                                            settings.get("signals_per_day", 5))
             # Build detailed tier message
-            tier_message = (
-                "Your subscription details:\n"
-                f"👤 Username: {settings.get('username', 'N/A')}\n"
-                f"📅 Activated on: {activated_date}\n"
-                f"⏳ Expires on: {expires_date}\n"
-                "\n"
-                "📈 Pump Alerts:\n"
-                f"   🔔 Status: {pump_status}\n"
-                f"   ⏱️ Timeframe: {timeframe_pump}\n"
-                f"   🎯 Threshold: {threshold_pump}%\n"
-                f"   🔔 Signals/day: {signals_day_pump}\n"
-                "\n"
-                "📉 Dump Alerts:\n"
-                f"   🔔 Status: {dump_status}\n"
-                f"   ⏱️ Timeframe: {timeframe_dump}\n"
-                f"   🎯 Threshold: {threshold_dump}%\n"
-                f"   🔔 Signals/day: {signals_day_dump}\n"
-                "\n"
-                f"🟡 Binance: {binance_status}\n"
-                f"🔵 Bybit: {bybit_status}\n"
-                f"📢 Signals: {signals_status}"
-            )
-            response = await message.answer(tier_message, reply_markup=main_menu_kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            tier_message = ("Your subscription details:\n"
+                            f"👤 Username: {settings.get('username', 'N/A')}\n"
+                            f"📅 Activated on: {activated_date}\n"
+                            f"⏳ Expires on: {expires_date}\n"
+                            "\n"
+                            "📈 Pump Alerts:\n"
+                            f"   🔔 Status: {pump_status}\n"
+                            f"   ⏱️ Timeframe: {timeframe_pump}\n"
+                            f"   🎯 Threshold: {threshold_pump}%\n"
+                            f"   🔔 Signals/day: {signals_day_pump}\n"
+                            "\n"
+                            "📉 Dump Alerts:\n"
+                            f"   🔔 Status: {dump_status}\n"
+                            f"   ⏱️ Timeframe: {timeframe_dump}\n"
+                            f"   🎯 Threshold: {threshold_dump}%\n"
+                            f"   🔔 Signals/day: {signals_day_dump}\n"
+                            "\n"
+                            f"🟡 Binance: {binance_status}\n"
+                            f"🔵 Bybit: {bybit_status}\n"
+                            f"📢 Signals: {signals_status}")
+            response = await message.answer(tier_message,
+                                            reply_markup=main_menu_kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
         else:
-            response = await message.answer("No subscription found.", reply_markup=main_menu_kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer("No subscription found.",
+                                            reply_markup=main_menu_kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
         return
@@ -624,7 +632,7 @@ async def handle_menu(message: Message) -> None:
         c = conn.cursor()
         c.execute(
             "SELECT username, is_admin FROM user_settings WHERE user_id=?",
-            (user_id,),
+            (user_id, ),
         )
         row = c.fetchone()
         if row:
@@ -632,9 +640,9 @@ async def handle_menu(message: Message) -> None:
             if not is_admin:
                 c.execute(
                     "UPDATE access_keys SET is_active=0, user_id=NULL WHERE username=?",
-                    (username_db,),
+                    (username_db, ),
                 )
-            c.execute("DELETE FROM user_settings WHERE user_id=?", (user_id,))
+            c.execute("DELETE FROM user_settings WHERE user_id=?", (user_id, ))
         conn.commit()
         conn.close()
         user_states.pop(user_id, None)
@@ -642,10 +650,11 @@ async def handle_menu(message: Message) -> None:
             "You have been logged out. Send /start to log back in.",
             reply_markup=main_menu_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -654,39 +663,39 @@ async def handle_menu(message: Message) -> None:
     if text == "⏱️ Timeframe":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "timeframe"}
-        response = await message.answer(
-            "Select your preferred timeframe:", reply_markup=timeframe_kb
-        )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        response = await message.answer("Select your preferred timeframe:",
+                                        reply_markup=timeframe_kb)
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
     if text == "📊 Price change":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "percent_change"}
-        response = await message.answer(
-            "Select price change threshold:", reply_markup=price_kb
-        )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        response = await message.answer("Select price change threshold:",
+                                        reply_markup=price_kb)
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
     if text == "📡 Signals per day":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "signals_per_day"}
-        response = await message.answer(
-            "Select number of signals per day:", reply_markup=signals_kb
-        )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        response = await message.answer("Select number of signals per day:",
+                                        reply_markup=signals_kb)
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -698,10 +707,11 @@ async def handle_menu(message: Message) -> None:
             f"Pump alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=type_alerts_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -713,10 +723,11 @@ async def handle_menu(message: Message) -> None:
             f"Dump alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=type_alerts_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -728,10 +739,11 @@ async def handle_menu(message: Message) -> None:
             f"Binance alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -743,10 +755,11 @@ async def handle_menu(message: Message) -> None:
             f"Bybit alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -758,10 +771,11 @@ async def handle_menu(message: Message) -> None:
             f"Signals are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
-        user_states.setdefault(user_id, {})[
-            "last_menu_msg_id"] = response.message_id
+        user_states.setdefault(user_id,
+                               {})["last_menu_msg_id"] = response.message_id
         try:
-            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            await bot.delete_message(chat_id=user_id,
+                                     message_id=message.message_id)
         except Exception:
             pass
         return
@@ -769,31 +783,38 @@ async def handle_menu(message: Message) -> None:
         current_menu = user_states.get(user_id, {}).get("menu")
         if current_menu == "type_alerts":
             user_states[user_id] = {"menu": "settings"}
-            response = await message.answer("Settings menu:", reply_markup=settings_menu_kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer("Settings menu:",
+                                            reply_markup=settings_menu_kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
         elif current_menu in ("pump", "dump", "tier"):
             user_states.pop(user_id, None)
-            response = await message.answer("Main menu:", reply_markup=main_menu_kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer("Main menu:",
+                                            reply_markup=main_menu_kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
         else:
-            response = await message.answer("Main menu:", reply_markup=main_menu_kb)
-            user_states.setdefault(user_id, {})[
-                "last_menu_msg_id"] = response.message_id
+            response = await message.answer("Main menu:",
+                                            reply_markup=main_menu_kb)
+            user_states.setdefault(
+                user_id, {})["last_menu_msg_id"] = response.message_id
             try:
-                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+                await bot.delete_message(chat_id=user_id,
+                                         message_id=message.message_id)
             except Exception:
                 pass
         return
+
 
 # ---------------------------------------------------------------------------
 # Signal processing helpers
@@ -851,8 +872,8 @@ async def process_exchange(
         try:
             data = await price_change_func(symbol, timeframe)
         except Exception as exc:
-            logging.error("Error fetching data for %s on %s: %s",
-                          symbol, exchange_name, exc)
+            logging.error("Error fetching data for %s on %s: %s", symbol,
+                          exchange_name, exc)
             continue
 
         price_change = data.get("price_change", 0.0)
@@ -865,17 +886,20 @@ async def process_exchange(
         except Exception:
             rsi_value = None
         if rsi_value is None:
-            rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
+            rsi_value = await get_rsi_from_exchange(exchange_name, symbol,
+                                                    timeframe)
 
         try:
-            funding_rate = await get_funding_rate(exchange_name.lower(), symbol, "h1")
+            funding_rate = await get_funding_rate(exchange_name.lower(),
+                                                  symbol, "h1")
         except Exception:
             funding_rate = None
         if funding_rate is None:
             funding_rate = await get_funding_rate_free(exchange_name, symbol)
 
         try:
-            long_short_ratio = await get_long_short_ratio(symbol, time_type="h1")
+            long_short_ratio = await get_long_short_ratio(symbol,
+                                                          time_type="h1")
         except Exception:
             long_short_ratio = None
         if long_short_ratio is None:
@@ -916,21 +940,21 @@ async def process_exchange(
                 orderbook_ratio=orderbook_ratio_val,
             )
             try:
-                await bot.send_message(
-                    chat_id=user_id, text=message_text, parse_mode="Markdown"
-                )
+                await bot.send_message(chat_id=user_id,
+                                       text=message_text,
+                                       parse_mode="Markdown")
             except TelegramBadRequest as exc:
                 # If the chat is not found, stop processing for this user
                 if "chat not found" in str(exc).lower():
-                    logging.warning(
-                        "Chat %s not found. Skipping user.", user_id)
+                    logging.warning("Chat %s not found. Skipping user.",
+                                    user_id)
                     return
                 # Otherwise log and return to avoid spamming errors
                 logging.error("Error sending message to %s: %s", user_id, exc)
                 return
             except Exception as exc:
-                logging.error(
-                    "Unexpected error sending message to %s: %s", user_id, exc)
+                logging.error("Unexpected error sending message to %s: %s",
+                              user_id, exc)
                 return
             # Update sent count only after successful send
             signals_sent += 1
@@ -953,19 +977,19 @@ async def process_exchange(
                 orderbook_ratio=orderbook_ratio_val,
             )
             try:
-                await bot.send_message(
-                    chat_id=user_id, text=message_text, parse_mode="Markdown"
-                )
+                await bot.send_message(chat_id=user_id,
+                                       text=message_text,
+                                       parse_mode="Markdown")
             except TelegramBadRequest as exc:
                 if "chat not found" in str(exc).lower():
-                    logging.warning(
-                        "Chat %s not found. Skipping user.", user_id)
+                    logging.warning("Chat %s not found. Skipping user.",
+                                    user_id)
                     return
                 logging.error("Error sending message to %s: %s", user_id, exc)
                 return
             except Exception as exc:
-                logging.error(
-                    "Unexpected error sending message to %s: %s", user_id, exc)
+                logging.error("Unexpected error sending message to %s: %s",
+                              user_id, exc)
                 return
             signals_sent += 1
             update_user_setting(user_id, "signals_sent_today", signals_sent)
@@ -997,7 +1021,8 @@ async def check_signals() -> None:
             signals_sent = settings.get("signals_sent_today", 0)
             limit = settings.get("signals_per_day", 5)
             # Skip if signals are disabled or the daily limit has been reached
-            if settings.get("signals_enabled", 1) == 0 or signals_sent >= limit:
+            if settings.get("signals_enabled",
+                            1) == 0 or signals_sent >= limit:
                 continue
             timeframe = settings.get("timeframe", "15m")
             threshold = settings.get("percent_change", 1.0)
@@ -1030,6 +1055,7 @@ async def check_signals() -> None:
                     bybit_price_change,
                 )
         await asyncio.sleep(300)
+
 
 # ---------------------------------------------------------------------------
 # Main entry point
