@@ -68,7 +68,7 @@ main_menu_kb = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="⚙️ Settings"),
-            KeyboardButton(text="🎟️ My Tier"),
+            KeyboardButton(text="👤 My Profile"),
         ],
         [KeyboardButton(text="🔓 Logout")],
     ],
@@ -472,7 +472,7 @@ async def handle_menu(message: Message) -> None:
             reply_markup=type_alerts_kb,
         )
         return
-    if text == "🎟️ My Tier":
+    if text == "👤 My Profile":
         settings = get_user_settings(user_id)
         if settings:
             # Retrieve activation and expiration dates from the access_keys table
