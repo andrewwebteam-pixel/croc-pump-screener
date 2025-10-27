@@ -413,20 +413,26 @@ async def handle_menu(message: Message) -> None:
     if "setting" in state:
         setting = state["setting"]
         if setting == "timeframe" and text in timeframe_options:
-            update_user_setting(user_id, "timeframe", text)
+            field_name = "timeframe_pump" if state.get(
+                "menu") == "pump" else "timeframe_dump"
+            update_user_setting(user_id, field_name, text)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Timeframe updated.", reply_markup=kb)
             return
         if setting == "percent_change" and text in price_options:
             value = float(text.strip("%"))
-            update_user_setting(user_id, "percent_change", value)
+            field_name = "percent_change_pump" if state.get(
+                "menu") == "pump" else "percent_change_dump"
+            update_user_setting(user_id, field_name, value)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Percent change updated.", reply_markup=kb)
             return
         if setting == "signals_per_day" and text.isdigit():
-            update_user_setting(user_id, "signals_per_day", int(text))
+            field_name = "signals_per_day_pump" if state.get(
+                "menu") == "pump" else "signals_per_day_dump"
+            update_user_setting(user_id, field_name, int(text))
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
             await message.answer("Signals per day updated.", reply_markup=kb)
