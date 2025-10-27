@@ -425,7 +425,13 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, text)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            await message.answer("Timeframe updated.", reply_markup=kb)
+            response = await message.answer("Timeframe updated.".format(text), reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
             return
         if setting == "percent_change" and text in price_options:
             value = float(text.strip("%"))
@@ -435,7 +441,13 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, value)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            await message.answer("Percent change updated.", reply_markup=kb)
+            response = await message.answer("Percent change updated.".format(value), reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
             return
         if setting == "signals_per_day" and text.isdigit():
             # Update specific signals per day setting based on current menu
@@ -444,7 +456,13 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, int(text))
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            await message.answer("Signals per day updated.", reply_markup=kb)
+            response = await message.answer("Signals per day updated.".format(text), reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
             return
         if text == "🔙 Back":
             state.pop("setting", None)
@@ -455,28 +473,52 @@ async def handle_menu(message: Message) -> None:
     # Main menu navigation
     if text == "📈 Pump Alerts":
         user_states[user_id] = {"menu": "pump"}
-        await message.answer(
+        response = await message.answer(
             "Configure your Pump Alert settings below:", reply_markup=pump_menu_kb
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "📉 Dump Alerts":
         user_states[user_id] = {"menu": "dump"}
-        await message.answer(
+        response = await message.answer(
             "Configure your Dump Alert settings below:", reply_markup=dump_menu_kb
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "⚙️ Settings":
-        await message.answer(
+        response = await message.answer(
             "Configure your exchange and signal preferences:",
             reply_markup=settings_menu_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "💡 Type Alerts":
         user_states[user_id] = {"menu": "type_alerts"}
-        await message.answer(
+        response = await message.answer(
             "Configure which alert types you want to receive:",
             reply_markup=type_alerts_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "👤 My Profile":
         settings = get_user_settings(user_id)
@@ -548,7 +590,13 @@ async def handle_menu(message: Message) -> None:
                 f"🔵 Bybit: {bybit_status}\n"
                 f"📢 Signals: {signals_status}"
             )
-            await message.answer(tier_message, reply_markup=main_menu_kb)
+            response = await message.answer(tier_message, reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
         else:
             await message.answer("No subscription found.", reply_markup=main_menu_kb)
         return
@@ -581,68 +629,116 @@ async def handle_menu(message: Message) -> None:
     if text == "⏱️ Timeframe":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "timeframe"}
-        await message.answer(
+        response = await message.answer(
             "Select your preferred timeframe:", reply_markup=timeframe_kb
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "📊 Price change":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "percent_change"}
-        await message.answer(
+        response = await message.answer(
             "Select price change threshold:", reply_markup=price_kb
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "📡 Signals per day":
         menu = user_states.get(user_id, {}).get("menu", "pump")
         user_states[user_id] = {"menu": menu, "setting": "signals_per_day"}
-        await message.answer(
+        response = await message.answer(
             "Select number of signals per day:", reply_markup=signals_kb
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "Pump ON/OFF":
         settings = get_user_settings(user_id)
         new_val = 0 if settings.get("type_pump", 1) == 1 else 1
         update_user_setting(user_id, "type_pump", new_val)
-        await message.answer(
+        response = await message.answer(
             f"Pump alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=type_alerts_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "Dump ON/OFF":
         settings = get_user_settings(user_id)
         new_val = 0 if settings.get("type_dump", 1) == 1 else 1
         update_user_setting(user_id, "type_dump", new_val)
-        await message.answer(
+        response = await message.answer(
             f"Dump alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=type_alerts_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "🟡 Binance ON/OFF":
         settings = get_user_settings(user_id)
         new_val = 0 if settings.get("exchange_binance", 1) == 1 else 1
         update_user_setting(user_id, "exchange_binance", new_val)
-        await message.answer(
+        response = await message.answer(
             f"Binance alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "🔵 Bybit ON/OFF":
         settings = get_user_settings(user_id)
         new_val = 0 if settings.get("exchange_bybit", 1) == 1 else 1
         update_user_setting(user_id, "exchange_bybit", new_val)
-        await message.answer(
+        response = await message.answer(
             f"Bybit alerts are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "🔔 Signals ON/OFF":
         settings = get_user_settings(user_id)
         new_val = 0 if settings.get("signals_enabled", 1) == 1 else 1
         update_user_setting(user_id, "signals_enabled", new_val)
-        await message.answer(
+        response = await message.answer(
             f"Signals are now {'ON' if new_val else 'OFF'}.",
             reply_markup=settings_menu_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
     if text == "🔙 Back":
         current_menu = user_states.get(user_id, {}).get("menu")
@@ -651,9 +747,21 @@ async def handle_menu(message: Message) -> None:
             await message.answer("Settings menu:", reply_markup=settings_menu_kb)
         elif current_menu in ("pump", "dump", "tier"):
             user_states.pop(user_id, None)
-            await message.answer("Main menu:", reply_markup=main_menu_kb)
+            response = await message.answer("Main menu:", reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
         else:
-            await message.answer("Main menu:", reply_markup=main_menu_kb)
+            response = await message.answer("Main menu:", reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
         return
 
 # ---------------------------------------------------------------------------
