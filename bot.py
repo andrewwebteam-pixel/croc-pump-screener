@@ -394,6 +394,12 @@ async def handle_menu(message: Message) -> None:
     username = message.from_user.username or str(user_id)
     text = message.text.strip()
     state = user_states.get(user_id, {})
+    last_id = user_states.get(user_id, {}).get("last_menu_msg_id")
+    if last_id:
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=last_id)
+        except Exception:
+            pass
 
     # Handle license key activation flow
     if state.get("awaiting_key"):
