@@ -337,15 +337,28 @@ async def cmd_start(message: Message) -> None:
     user_id = message.from_user.id
     username = message.from_user.username or str(user_id)
     if check_subscription(user_id):
-        await message.answer(
+        response = await message.answer(
             "Welcome back! 🎉 Your subscription is active. Use the menu to configure alerts.",
             reply_markup=main_menu_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
     else:
         user_states[user_id] = {"awaiting_key": True}
-        await message.answer(
+        response = await message.answer(
             "Hello! 👋 Please enter your license key to activate your subscription."
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
+        return
 
 
 @dp.message(Command("activate"))
@@ -598,7 +611,13 @@ async def handle_menu(message: Message) -> None:
             except Exception:
                 pass
         else:
-            await message.answer("No subscription found.", reply_markup=main_menu_kb)
+            response = await message.answer("No subscription found.", reply_markup=main_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
         return
     if text == "🔓 Logout":
         conn = sqlite3.connect("keys.db")
@@ -619,10 +638,16 @@ async def handle_menu(message: Message) -> None:
         conn.commit()
         conn.close()
         user_states.pop(user_id, None)
-        await message.answer(
+        response = await message.answer(
             "You have been logged out. Send /start to log back in.",
             reply_markup=main_menu_kb,
         )
+        user_states.setdefault(user_id, {})[
+            "last_menu_msg_id"] = response.message_id
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+        except Exception:
+            pass
         return
 
     # Pump/Dump submenu options
@@ -744,7 +769,13 @@ async def handle_menu(message: Message) -> None:
         current_menu = user_states.get(user_id, {}).get("menu")
         if current_menu == "type_alerts":
             user_states[user_id] = {"menu": "settings"}
-            await message.answer("Settings menu:", reply_markup=settings_menu_kb)
+            response = await message.answer("Settings menu:", reply_markup=settings_menu_kb)
+            user_states.setdefault(user_id, {})[
+                "last_menu_msg_id"] = response.message_id
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=message.message_id)
+            except Exception:
+                pass
         elif current_menu in ("pump", "dump", "tier"):
             user_states.pop(user_id, None)
             response = await message.answer("Main menu:", reply_markup=main_menu_kb)
