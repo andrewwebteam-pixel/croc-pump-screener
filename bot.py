@@ -425,7 +425,7 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, text)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            response = await message.answer("Timeframe updated.".format(text), reply_markup=main_menu_kb)
+            response = await message.answer("Timeframe updated.".format(text), reply_markup=kb)
             user_states.setdefault(user_id, {})[
                 "last_menu_msg_id"] = response.message_id
             try:
@@ -441,7 +441,7 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, value)
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            response = await message.answer("Percent change updated.".format(value), reply_markup=main_menu_kb)
+            response = await message.answer("Percent change updated.".format(value), reply_markup=kb)
             user_states.setdefault(user_id, {})[
                 "last_menu_msg_id"] = response.message_id
             try:
@@ -456,7 +456,7 @@ async def handle_menu(message: Message) -> None:
             update_user_setting(user_id, field_name, int(text))
             state.pop("setting", None)
             kb = pump_menu_kb if state.get("menu") == "pump" else dump_menu_kb
-            response = await message.answer("Signals per day updated.".format(text), reply_markup=main_menu_kb)
+            response = await message.answer("Signals per day updated.".format(text), reply_markup=kb)
             user_states.setdefault(user_id, {})[
                 "last_menu_msg_id"] = response.message_id
             try:
