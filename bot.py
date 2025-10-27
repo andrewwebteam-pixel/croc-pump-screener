@@ -413,6 +413,7 @@ async def handle_menu(message: Message) -> None:
     if "setting" in state:
         setting = state["setting"]
         if setting == "timeframe" and text in timeframe_options:
+            # Update specific timeframe setting based on current menu (pump or dump)
             field_name = "timeframe_pump" if state.get(
                 "menu") == "pump" else "timeframe_dump"
             update_user_setting(user_id, field_name, text)
@@ -422,6 +423,7 @@ async def handle_menu(message: Message) -> None:
             return
         if setting == "percent_change" and text in price_options:
             value = float(text.strip("%"))
+            # Update specific percent change threshold based on current menu
             field_name = "percent_change_pump" if state.get(
                 "menu") == "pump" else "percent_change_dump"
             update_user_setting(user_id, field_name, value)
@@ -430,6 +432,7 @@ async def handle_menu(message: Message) -> None:
             await message.answer("Percent change updated.", reply_markup=kb)
             return
         if setting == "signals_per_day" and text.isdigit():
+            # Update specific signals per day setting based on current menu
             field_name = "signals_per_day_pump" if state.get(
                 "menu") == "pump" else "signals_per_day_dump"
             update_user_setting(user_id, field_name, int(text))
@@ -496,9 +499,26 @@ async def handle_menu(message: Message) -> None:
             bybit_status = "ON" if settings.get("exchange_bybit", 1) else "OFF"
             signals_status = "ON" if settings.get(
                 "signals_enabled", 1) else "OFF"
-            timeframe = settings.get("timeframe", "15m")
-            threshold = settings.get("percent_change", 1.0)
-            signals_day = settings.get("signals_per_day", 5)
+            # Pump-specific settings (fallback to common settings if not found)
+            timeframe_pump = settings.get(
+                "timeframe_pump", settings.get("timeframe", "15m")
+            )
+            threshold_pump = settings.get(
+                "percent_change_pump", settings.get("percent_change", 1.0)
+            )
+            signals_day_pump = settings.get(
+                "signals_per_day_pump", settings.get("signals_per_day", 5)
+            )
+            # Dump-specific settings (fallback to common settings if not found)
+            timeframe_dump = settings.get(
+                "timeframe_dump", settings.get("timeframe", "15m")
+            )
+            threshold_dump = settings.get(
+                "percent_change_dump", settings.get("percent_change", 1.0)
+            )
+            signals_day_dump = settings.get(
+                "signals_per_day_dump", settings.get("signals_per_day", 5)
+            )
             # Build detailed tier message
             tier_message = (
                 "Your subscription details:\n"
@@ -508,15 +528,16 @@ async def handle_menu(message: Message) -> None:
                 "\n"
                 "📈 Pump Alerts:\n"
                 f"   🔔 Status: {pump_status}\n"
-                f"   ⏱️ Timeframe: {timeframe}\n"
-                f"   🎯 Threshold: {threshold}%\n"
+                f"   ⏱️ Timeframe: {timeframe_pump}\n"
+                f"   🎯 Threshold: {threshold_pump}%\n"
+                f"   🔔 Signals/day: {signals_day_pump}\n"
                 "\n"
                 "📉 Dump Alerts:\n"
                 f"   🔔 Status: {dump_status}\n"
-                f"   ⏱️ Timeframe: {timeframe}\n"
-                f"   🎯 Threshold: {threshold}%\n"
+                f"   ⏱️ Timeframe: {timeframe_dump}\n"
+                f"   🎯 Threshold: {threshold_dump}%\n"
+                f"   🔔 Signals/day: {signals_day_dump}\n"
                 "\n"
-                f"🔔 Signals/day: {signals_day}\n"
                 f"🟡 Binance: {binance_status}\n"
                 f"🔵 Bybit: {bybit_status}\n"
                 f"📢 Signals: {signals_status}"
