@@ -958,8 +958,7 @@ async def check_signals() -> None:
             if not settings:
                 continue
             signals_sent = settings.get("signals_sent_today", 0)
-            # Use a generic limit to skip processing if the user has reached their daily limit
-            generic_limit = settings.get("signals_per_day", 5)
+            generic_limit = settings.get("signals_per_day", 1000)
             if settings.get("signals_enabled", 1) == 0 or signals_sent >= generic_limit:
                 continue
             timeframe_pump = settings.get(
