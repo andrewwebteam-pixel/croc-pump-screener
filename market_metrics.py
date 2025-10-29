@@ -47,7 +47,7 @@ async def get_open_interest_bybit(symbol: str) -> float:
         no data is returned, or the result is empty, returns ``0.0``.
     """
     url = "https://api.bybit.com/v5/market/open-interest"
-    params = {"category": "linear", "symbol": symbol}
+    params = {"category": "linear", "symbol": symbol, "intervalTime": "5min"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, proxy=PROXY_URL) as resp:
             data = await resp.json()
