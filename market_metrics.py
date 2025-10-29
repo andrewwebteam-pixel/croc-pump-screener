@@ -53,6 +53,8 @@ async def get_open_interest_bybit(symbol: str) -> float:
             data = await resp.json()
     result_list = data.get("result", {}).get("list", [])
     if not result_list:
+        import logging
+        logging.warning(f"No open interest data for {symbol} on Bybit: {data}")
         return 0.0
     try:
         # API возвращает строку в поле "openInterest"
