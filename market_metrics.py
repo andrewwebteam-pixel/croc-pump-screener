@@ -54,7 +54,11 @@ async def get_open_interest_bybit(symbol: str) -> float:
     result_list = data.get("result", {}).get("list", [])
     if not result_list:
         return 0.0
-    return float(result_list[0].get("openInterest", 0))
+    try:
+        # API возвращает строку в поле "openInterest"
+        return float(result_list[0].get("openInterest", 0))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 async def get_orderbook_ratio_binance(symbol: str, depth: int = 50) -> float:
