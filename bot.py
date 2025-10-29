@@ -1,5 +1,4 @@
 import asyncio
-import datetime  # imported for completeness; currently unused
 import logging
 import sqlite3
 import time
@@ -801,17 +800,27 @@ async def process_exchange(
     signals_sent: int,
     limit: int,
     price_change_func: Callable[[str, str], asyncio.Future],
-) -> None:
-    """Process pump/dump signals for a specific exchange and send alerts.
+    counter_field: str,
+) -> int:
+    """Process pump or dump signals for a specific exchange and return updated count.
+
+    This function iterates over the global ``SYMBOLS`` list, fetches price and volume
+    change data for each symbol using the provided ``price_change_func``, and
+    determines whether the price change exceeds the user-defined threshold. If a
+    pump or dump condition is met (controlled by ``pump_on`` and ``dump_on``), a
+    formatted signal is sent via the bot. The user's per-day signal counter,
+    specified by ``counter_field``, is incremented and persisted via
+    ``update_user_setting``. The updated ``signals_sent`` count is returned to
+    facilitate successive calls that share state.
 
     Parameters
     ----------
     exchange_name : str
-        Name of the exchange (e.g., ``"Binance"`` or ``"Bybit"``).
+        Name of the exchange (e.g., "Binance" or "Bybit").
     user_id : int
         Telegram user ID to send messages to.
     timeframe : str
-        Candle timeframe (e.g., ``"15m"``, ``"1h"``).
+        Candle timeframe (e.g., "15m", "1h").
     threshold : float
         Percent change threshold to trigger alerts.
     pump_on : bool
@@ -819,15 +828,25 @@ async def process_exchange(
     dump_on : bool
         Whether dump alerts are enabled.
     signals_sent : int
-        Number of signals already sent today for this user.
+        Number of signals already sent today for this user on this exchange.
     limit : int
-        Maximum signals allowed per day for this user.
+        Maximum signals allowed per day for this user on this exchange.
     price_change_func : Callable[[str, str], asyncio.Future]
         Function to fetch price and volume change data for a given symbol and timeframe.
+    counter_field : str
+        Name of the user_settings field to update when a signal is sent (e.g.,
+        ``"signals_sent_today_pump"`` or ``"signals_sent_today_dump"``).
+
+    Returns
+    -------
+    int
+        The updated number of signals sent today after processing all symbols.
     """
     for symbol in SYMBOLS:
+        # Stop if the user has reached their daily limit for this category
         if signals_sent >= limit:
             break
+        # Fetch price change data; skip on error
         try:
             data = await price_change_func(symbol, timeframe)
         except Exception as exc:
@@ -837,24 +856,28 @@ async def process_exchange(
         price_change = data.get("price_change", 0.0)
         volume_change = data.get("volume_change", 0.0)
         price_now = data.get("price_now", 0.0)
+        # Compute RSI with fallback to free exchange API
         try:
             rsi_value = await get_rsi(symbol, timeframe)
         except Exception:
             rsi_value = None
         if rsi_value is None:
             rsi_value = await get_rsi_from_exchange(exchange_name, symbol, timeframe)
+        # Fetch funding rate with fallback
         try:
             funding_rate = await get_funding_rate(exchange_name.lower(), symbol, "h1")
         except Exception:
             funding_rate = None
         if funding_rate is None:
             funding_rate = await get_funding_rate_free(exchange_name, symbol)
+        # Fetch long/short ratio with fallback
         try:
             long_short_ratio = await get_long_short_ratio(symbol, time_type="h1")
         except Exception:
             long_short_ratio = None
         if long_short_ratio is None:
             long_short_ratio = await get_long_short_ratio_free(symbol, "1h")
+        # Fetch open interest and order book ratio depending on exchange
         try:
             if exchange_name == "Binance":
                 open_interest_val = await get_open_interest_binance(symbol)
@@ -871,10 +894,13 @@ async def process_exchange(
             )
             open_interest_val = None
             orderbook_ratio_val = None
-        if pump_on and price_change >= threshold:
+        # Determine whether to send a pump or dump alert
+        should_send_pump = pump_on and price_change >= threshold
+        should_send_dump = dump_on and price_change <= -threshold
+        if should_send_pump or should_send_dump:
             message_text = format_signal(
                 symbol=symbol,
-                is_pump=True,
+                is_pump=should_send_pump,
                 exchange=exchange_name,
                 price_now=price_now,
                 price_change=price_change,
@@ -887,50 +913,28 @@ async def process_exchange(
                 orderbook_ratio=orderbook_ratio_val,
             )
             try:
-                await bot.send_message(chat_id=user_id, text=message_text, parse_mode="Markdown")
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=message_text,
+                    parse_mode="Markdown",
+                )
             except TelegramBadRequest as exc:
+                # If the chat is not found, stop processing for this user
                 if "chat not found" in str(exc).lower():
                     logging.warning(
                         "Chat %s not found. Skipping user.", user_id)
-                    return
+                    return signals_sent
+                # Otherwise log and stop to avoid spamming errors
                 logging.error("Error sending message to %s: %s", user_id, exc)
-                return
+                return signals_sent
             except Exception as exc:
                 logging.error(
                     "Unexpected error sending message to %s: %s", user_id, exc)
-                return
+                return signals_sent
+            # Update counters and persist
             signals_sent += 1
-            update_user_setting(user_id, "signals_sent_today", signals_sent)
-        elif dump_on and price_change <= -threshold:
-            message_text = format_signal(
-                symbol=symbol,
-                is_pump=False,
-                exchange=exchange_name,
-                price_now=price_now,
-                price_change=price_change,
-                volume_now=data.get("volume_now"),
-                volume_change=volume_change,
-                rsi=rsi_value,
-                funding=funding_rate,
-                long_short_ratio=long_short_ratio,
-                open_interest=open_interest_val,
-                orderbook_ratio=orderbook_ratio_val,
-            )
-            try:
-                await bot.send_message(chat_id=user_id, text=message_text, parse_mode="Markdown")
-            except TelegramBadRequest as exc:
-                if "chat not found" in str(exc).lower():
-                    logging.warning(
-                        "Chat %s not found. Skipping user.", user_id)
-                    return
-                logging.error("Error sending message to %s: %s", user_id, exc)
-                return
-            except Exception as exc:
-                logging.error(
-                    "Unexpected error sending message to %s: %s", user_id, exc)
-                return
-            signals_sent += 1
-            update_user_setting(user_id, "signals_sent_today", signals_sent)
+            update_user_setting(user_id, counter_field, signals_sent)
+    return signals_sent
 
 
 async def check_signals() -> None:
@@ -950,17 +954,22 @@ async def check_signals() -> None:
         users = c.fetchall()
         conn.close()
         for username_db, user_id_db in users:
+            # Skip entries with invalid user IDs
             if user_id_db is None or user_id_db == 0:
                 continue
+            # Skip users without an active subscription
             if not check_subscription(user_id_db):
                 continue
             settings = get_user_settings(user_id_db)
             if not settings:
                 continue
-            signals_sent = settings.get("signals_sent_today", 0)
-            generic_limit = settings.get("signals_per_day", 1000)
-            if settings.get("signals_enabled", 1) == 0 or signals_sent >= generic_limit:
+            # Retrieve per-category counters; default to zero if missing
+            signals_sent_pump = settings.get("signals_sent_today_pump", 0)
+            signals_sent_dump = settings.get("signals_sent_today_dump", 0)
+            # If signals are globally disabled, skip this user entirely
+            if settings.get("signals_enabled", 1) == 0:
                 continue
+            # Determine pump and dump parameters, falling back to common settings if category-specific fields are absent
             timeframe_pump = settings.get(
                 "timeframe_pump", settings.get("timeframe", "15m"))
             threshold_pump = settings.get(
@@ -973,61 +982,70 @@ async def check_signals() -> None:
                 "percent_change_dump", settings.get("percent_change", 1.0))
             signals_limit_dump = settings.get(
                 "signals_per_day_dump", settings.get("signals_per_day", 5))
+            # Flags controlling whether each alert type is enabled
             pump_on = bool(settings.get("type_pump", 1))
             dump_on = bool(settings.get("type_dump", 1))
             binance_on = bool(settings.get("exchange_binance", 1))
             bybit_on = bool(settings.get("exchange_bybit", 1))
-            # Process pump signals
+            # Process pump signals if enabled
             if pump_on:
-                if binance_on:
-                    await process_exchange(
+                # Binance pump signals
+                if binance_on and signals_sent_pump < signals_limit_pump:
+                    signals_sent_pump = await process_exchange(
                         "Binance",
                         user_id_db,
                         timeframe_pump,
                         threshold_pump,
                         True,
                         False,
-                        signals_sent,
+                        signals_sent_pump,
                         signals_limit_pump,
                         binance_price_change,
+                        counter_field="signals_sent_today_pump",
                     )
-                if bybit_on:
-                    await process_exchange(
+                # Bybit pump signals
+                if bybit_on and signals_sent_pump < signals_limit_pump:
+                    signals_sent_pump = await process_exchange(
                         "Bybit",
                         user_id_db,
                         timeframe_pump,
                         threshold_pump,
                         True,
                         False,
-                        signals_sent,
+                        signals_sent_pump,
                         signals_limit_pump,
                         bybit_price_change,
+                        counter_field="signals_sent_today_pump",
                     )
-            # Process dump signals
+            # Process dump signals if enabled
             if dump_on:
-                if binance_on:
-                    await process_exchange(
+                # Binance dump signals
+                if binance_on and signals_sent_dump < signals_limit_dump:
+                    signals_sent_dump = await process_exchange(
                         "Binance",
                         user_id_db,
                         timeframe_dump,
                         threshold_dump,
                         False,
                         True,
-                        signals_sent,
+                        signals_sent_dump,
                         signals_limit_dump,
                         binance_price_change,
+                        counter_field="signals_sent_today_dump",
                     )
-                if bybit_on:
-                    await process_exchange(
+                # Bybit dump signals
+                if bybit_on and signals_sent_dump < signals_limit_dump:
+                    signals_sent_dump = await process_exchange(
                         "Bybit",
                         user_id_db,
                         timeframe_dump,
                         threshold_dump,
                         False,
                         True,
-                        signals_sent,
+                        signals_sent_dump,
                         signals_limit_dump,
                         bybit_price_change,
+                        counter_field="signals_sent_today_dump",
                     )
         await asyncio.sleep(300)
 
