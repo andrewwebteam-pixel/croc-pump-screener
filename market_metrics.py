@@ -32,7 +32,7 @@ async def get_open_interest_binance(symbol: str) -> float:
     return float(data.get("openInterest", 0))
 
 
-async def get_open_interest_bybit(symbol: str) -> float:
+async def get_open_interest_bybit(symbol: str, timeframe: str = "5m") -> float:
     """Fetch the open interest for a symbol from Bybit Futures.
 
     Parameters
@@ -57,7 +57,7 @@ async def get_open_interest_bybit(symbol: str) -> float:
         "1d": "1d",
     }
     # Bybit API requires intervalTime — use default if missing
-    interval = interval_map.get("5m")
+    interval = interval_map.get(timeframe, "5min")
 
     url = "https://api.bybit.com/v5/market/open-interest"
     params = {"category": "linear", "symbol": symbol, "intervalTime": interval}
