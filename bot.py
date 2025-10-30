@@ -883,7 +883,7 @@ async def process_exchange(
                 open_interest_val = await get_open_interest_binance(symbol)
                 orderbook_ratio_val = await get_orderbook_ratio_binance(symbol)
             else:
-                open_interest_val = await get_open_interest_bybit(symbol)
+                open_interest_val = await get_open_interest_bybit(symbol, timeframe)
                 orderbook_ratio_val = await get_orderbook_ratio_bybit(symbol)
         except Exception as exc:
             logging.error(
