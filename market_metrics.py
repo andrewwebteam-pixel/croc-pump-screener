@@ -46,8 +46,21 @@ async def get_open_interest_bybit(symbol: str) -> float:
         The open interest value from the first entry in the response list. If
         no data is returned, or the result is empty, returns ``0.0``.
     """
+    # Convert timeframe for Bybit API compatibility (default 5min)
+    interval_map = {
+        "1m": "1min",
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "1h",
+        "4h": "4h",
+        "1d": "1d",
+    }
+    # Bybit API requires intervalTime — use default if missing
+    interval = interval_map.get("5m")
+
     url = "https://api.bybit.com/v5/market/open-interest"
-    params = {"category": "linear", "symbol": symbol, "intervalTime": "5min"}
+    params = {"category": "linear", "symbol": symbol, "intervalTime": interval}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, proxy=PROXY_URL) as resp:
             data = await resp.json()
@@ -57,8 +70,9 @@ async def get_open_interest_bybit(symbol: str) -> float:
         logging.warning(f"No open interest data for {symbol} on Bybit: {data}")
         return 0.0
     try:
-        # API возвращает строку в поле "openInterest"
-        return float(result_list[0].get("openInterest", 0))
+        entry = result_list[0]
+        value = entry.get("openInterest") or entry.get("openInterestUsd", 0)
+        return float(value)
     except (TypeError, ValueError):
         return 0.0
 
@@ -110,8 +124,8 @@ async def get_orderbook_ratio_bybit(symbol: str, depth: int = 50) -> float:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, proxy=PROXY_URL) as resp:
             data = await resp.json()
-    b_list = data.get("result", {}).get("b", [])
-    a_list = data.get("result", {}).get("a", [])
-    bids = sum(float(entry[1]) for entry in b_list)
-    asks = sum(float(entry[1]) for entry in a_list)
-    return bids / asks if asks else 0.0
+    bids = data.get("result", {}).get("b", [])
+    asks = data.get("result", {}).get("a", [])
+    total_bids = sum(float(entry[1]) for entry in bids)
+    total_asks = sum(float(entry[1]) for entry in asks)
+    return total_bids / total_asks if total_asks else 0.0
